@@ -1,0 +1,13 @@
+{
+  "timezone_offset_hours": 5,
+  "send_hour": 9,
+  "payments": [
+    {"id": "arenda",  "name": "Аренда тўлови",       "freq": "monthly",   "day": 5,  "remind_before": [3, 1, 0], "amount": "", "note": ""},
+    {"id": "wifi",    "name": "WiFi (интернет)",     "freq": "monthly",   "day": 10, "remind_before": [3, 1, 0], "amount": "", "note": ""},
+    {"id": "crm",     "name": "CRM тўлови",          "freq": "monthly",   "day": 15, "remind_before": [3, 1, 0], "amount": "", "note": ""},
+    {"id": "avans",   "name": "Ходимлар аванси",     "freq": "monthly",   "day": 15, "remind_before": [2, 0],    "amount": "", "note": ""},
+    {"id": "oylik",   "name": "Ходимлар ойлиги",     "freq": "monthly",   "day": 30, "remind_before": [3, 1, 0], "amount": "", "note": "28-30 санага қараб"},
+    {"id": "soliq_m", "name": "Ойлик солиқ ҳисоботи","freq": "monthly",   "day": 20, "remind_before": [5, 2, 0], "amount": "", "note": ""},
+    {"id": "soliq_q", "name": "Чораклик солиқ ҳисоботи","freq": "quarterly","day": 25, "month": 1, "remind_before": [7, 3, 0], "amount": "", "note": "янв/апр/июл/окт"}
+  ]
+}
