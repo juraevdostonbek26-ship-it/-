@@ -1,9 +1,15 @@
 """Telegram бот: кўп фойдаланувчили эслатма котиби. Фақат стандарт кутубхона."""
-import html, json, os, time, traceback, urllib.request
+import html, json, os, sys, time, traceback, urllib.request
 from collections import defaultdict, deque
 from datetime import timedelta
 
 import logic as L
+
+for _s in (sys.stdout, sys.stderr):  # Windows ойнаси ўзбекча ҳарфда ботни ўчирмасин
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db"))
 WD = ["Душанба", "Сешанба", "Чоршанба", "Пайшанба", "Жума", "Шанба", "Якшанба"]
