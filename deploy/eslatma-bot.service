@@ -1,0 +1,20 @@
+[Unit]
+Description=Eslatma bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=eslatma
+WorkingDirectory=/opt/eslatma_bot
+EnvironmentFile=/etc/eslatma-bot.env
+Environment=DB_PATH=/var/lib/eslatma/data.db
+ExecStart=/usr/bin/python3 /opt/eslatma_bot/bot.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/eslatma
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
