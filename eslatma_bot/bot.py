@@ -1,5 +1,5 @@
 """Telegram бот: кўп фойдаланувчили эслатма котиби. Фақат стандарт кутубхона."""
-import html, json, os, time, urllib.request
+import html, json, os, time, traceback, urllib.request
 from collections import defaultdict, deque
 from datetime import timedelta
 
@@ -330,19 +330,25 @@ class App:
 def run():
     conn = L.connect(DB_PATH)
     app = App(conn, Tg(os.environ["TELEGRAM_BOT_TOKEN"]))
+    try:
+        print("Бот ишга тушди: @" + app.tg.call("getMe")["result"]["username"], flush=True)
+    except Exception as e:
+        raise SystemExit(f"Токен нотўғри ёки интернет йўқ ({type(e).__name__}). Токенни текширинг.")
     row = conn.execute("SELECT v FROM meta WHERE k='offset'").fetchone()
     offset = int(row["v"]) if row else 0
     while True:
         try:
             for up in app.tg.call("getUpdates", offset=offset, timeout=25, allowed_updates=["message", "callback_query"]).get("result", []):
                 offset = up["update_id"] + 1
+                print(time.strftime("%H:%M:%S"), "хабар келди:", "тугма" if "callback_query" in up else "матн", flush=True)
                 try:
                     if "message" in up:
                         app.on_message(up["message"])
                     elif "callback_query" in up:
                         app.on_callback(up["callback_query"])
                 except Exception as e:  # битта хато ботни тўхтатмайди; матн логга ёзилмайди
-                    print("ишлов хатоси:", type(e).__name__, flush=True)
+                    fr = traceback.extract_tb(e.__traceback__)[-1]
+                    print("ИШЛОВ ХАТОСИ:", type(e).__name__, e, "— қатор", fr.lineno, fr.name, flush=True)
             conn.execute("INSERT OR REPLACE INTO meta VALUES('offset',?)", (str(offset),)); conn.commit()
             app.tick()
         except Exception as e:
