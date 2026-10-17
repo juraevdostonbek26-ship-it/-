@@ -6,7 +6,7 @@ from texts import TXT
 
 class FakeTg:
     def __init__(self):
-        self.out, self.n = [], 100
+        self.out, self.n, self.deletes, self.toasts = [], 100, [], []
     def send(self, chat, text, markup=None):
         self.n += 1
         self.out.append(("send", chat, text, markup))
@@ -15,7 +15,9 @@ class FakeTg:
         self.out.append(("edit", chat, text, markup))
         return True
     def delete(self, chat, mid):
-        self.out.append(("delete", chat, mid))
+        self.deletes.append((chat, mid))
+    def answer(self, cid, text=""):
+        self.toasts.append(text)
     def call(self, m, **p):
         self.out.append((m, p))
     def texts(self, kinds=("send", "edit")):
@@ -124,7 +126,7 @@ def test_once_calendar_and_text_inputs():
     r = L.own_reminder(db, 1, last_rid(db))
     assert (r["freq"], r["date"], L.times_of(r), r["lead_days"], r["amount"]) == ("once", "2026-12-24", ["08:30", "09:00", "17:45"], 3, "Zal №5")
     assert "21.12" in tg.texts()[-1] and "08:30" in tg.texts()[-1]  # кейинги эслатма 3 кун олдин
-    assert any(o[0] == "delete" for o in tg.out)  # ёзилган матн чатдан тозаланади
+    assert tg.deletes  # ёзилган матн чатдан тозаланади
 
 
 def test_weekly_and_daily():
@@ -161,7 +163,7 @@ def test_snooze_custom_tomorrow_done_and_closed():
     app.on_callback(cb(1, f"dn:{oid}", 9)); assert db.execute("select status from occ").fetchone()[0] == "done"
     clk.t = ts(2026, 11, 20); n = len(sent(tg)); app.tick(); assert len(sent(tg)) == n
     app.on_callback(cb(1, f"sn:{oid}", 9)); app.on_callback(cb(1, f"sz:{oid}:2", 9))
-    assert "yopilgan" in tg.out[-1][2]
+    assert "yopilgan" in tg.toasts[-1]
 
 
 def test_created_today_after_time_does_not_fire_immediately():

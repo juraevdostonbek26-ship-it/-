@@ -1,5 +1,5 @@
 """Telegram бот: кўп фойдаланувчили эслатма котиби (UZ/RU). Фақат стандарт кутубхона."""
-import calendar, html, json, os, sys, time, traceback, urllib.error, urllib.request
+import calendar, html, json, os, re, sys, time, traceback, urllib.error, urllib.request
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta
 
@@ -17,7 +17,7 @@ E = lambda s: html.escape(s, quote=False)  # апостроф ўзгармаси
 HOURS = [f"{h:02d}:00" for h in range(7, 23)]
 MENU = {tr(lg, k): c for lg in TXT for k, c in (("m_add", "add"), ("m_list", "list"), ("m_soon", "soon"), ("m_set", "set"))}
 WIZ_KEYS = {"fr", "dy", "wd", "cal", "cd", "tm", "tmd", "tmc", "ld", "am", "cx"}
-TEXT_STEPS = {"title", "amount", "time_custom", "snooze_custom"}
+TEXT_STEPS = {"title", "amount", "time_custom", "snooze_custom", "day", "date", "time", "lead"}
 
 
 def kb(rows):
@@ -30,8 +30,8 @@ def main_kb(lg):
 
 
 class Tg:
-    def __init__(self, token):
-        self.url = f"https://api.telegram.org/bot{token}/"
+    def __init__(self, token, base=None):
+        self.url = f"{base or os.environ.get('TELEGRAM_API') or 'https://api.telegram.org'}/bot{token}/"
 
     def call(self, method, **p):
         req = urllib.request.Request(self.url + method, json.dumps(p).encode(), {"Content-Type": "application/json"})
@@ -56,6 +56,12 @@ class Tg:
         except Exception:
             return False
 
+    def answer(self, cid, text=""):
+        try:
+            self.call("answerCallbackQuery", callback_query_id=cid, **({"text": text[:190]} if text else {}))
+        except Exception:
+            pass
+
     def delete(self, chat, mid):
         try:
             self.call("deleteMessage", chat_id=chat, message_id=mid)
@@ -66,6 +72,19 @@ class Tg:
 # ---------- матн ва тугмалар ----------
 def fmt_date(iso):
     return f"{iso[8:]}.{iso[5:7]}.{iso[:4]}"
+
+
+def parse_date(s, today):
+    m = re.fullmatch(r"(\d{1,2})[./](\d{1,2})(?:[./](\d{4}))?", (s or "").strip())
+    if not m:
+        return None
+    try:
+        d = date(int(m[3]) if m[3] else today.year, int(m[2]), int(m[1]))
+        if not m[3] and d < today:
+            d = d.replace(year=d.year + 1)
+    except ValueError:
+        return None
+    return d if d >= today else None
 
 
 def when_of(d, lg):
@@ -193,6 +212,9 @@ class App:
     def __init__(self, conn, tg, now=time.time):
         self.db, self.tg, self.now = conn, tg, now
         self.hits = defaultdict(deque)
+        self.toast = ""
+        self.errors = []
+        self.verbose = False
 
     def limited(self, uid):
         q, t = self.hits[uid], self.now()
@@ -207,13 +229,25 @@ class App:
     def fmt_ts(self, u, ts):
         return L.local_dt(u, ts).strftime("%d.%m %H:%M")
 
-    # --- битта хабарни таҳрирлаш (эски хабарлар қолиб кетмасин) ---
-    def put(self, chat, d, text, markup):
-        mid = d.get("mid")
-        if mid and self.tg.edit(chat, mid, text, markup):
-            return
+    # --- чат тоза қолиши: ягона «панел» хабари алмашиб туради ---
+    def new_panel(self, uid, chat, text, markup):
+        prev = L.get_user(self.db, uid)["panel_mid"]
         r = self.tg.send(chat, text, markup)
-        d["mid"] = ((r or {}).get("result") or {}).get("message_id")
+        mid = ((r or {}).get("result") or {}).get("message_id")
+        L.set_user(self.db, uid, panel_mid=mid)
+        if prev and prev != mid:
+            self.tg.delete(chat, prev)
+        return mid
+
+    def panel(self, uid, chat, mid, text, markup):
+        """mid берилса — шу хабарни жойида алмаштиради, бўлмаса янги панел (эскиси ўчади)."""
+        if mid and self.tg.edit(chat, mid, text, markup):
+            L.set_user(self.db, uid, panel_mid=mid)
+            return mid
+        return self.new_panel(uid, chat, text, markup)
+
+    def put(self, uid, chat, d, text, markup):
+        d["mid"] = self.panel(uid, chat, d.get("mid"), text, markup)
 
     def wiz(self, uid, chat, d, step=None, warn=""):
         u = L.get_user(self.db, uid)
@@ -222,23 +256,23 @@ class App:
         if step is None:
             return self.finish(uid, chat, d, u, lg)
         text, markup = render(step, d, lg, self.today(u), warn)
-        self.put(chat, d, text, markup)
+        self.put(uid, chat, d, text, markup)
         L.set_conv(self.db, uid, step, d)
 
     def finish(self, uid, chat, d, u, lg):
         L.clear_conv(self.db, uid)
         rid = L.add_reminder(self.db, uid, d, self.now())
         if rid is None:
-            return self.put(chat, d, tr(lg, "limit", n=L.MAX_REMINDERS), None)
+            return self.put(uid, chat, d, tr(lg, "limit", n=L.MAX_REMINDERS), None)
         L.sync(self.db, self.now())
         r = L.own_reminder(self.db, uid, rid)
         nf = L.next_fire(self.db, uid, r, self.now())
         text = tr(lg, "saved", title=E(r["title"]), when=when_of(r, lg) + lead_of(r["lead_days"], lg), times=", ".join(L.times_of(r)),
                   extra=(f"\n💰 {E(r['amount'])}" if r["amount"] else ""), next=self.fmt_ts(u, nf) if nf else tr(lg, "none"))
-        self.put(chat, d, text, kb([[(tr(lg, "add_more"), "addnew"), (tr(lg, "to_list"), "lst")]]))
+        self.put(uid, chat, d, text, kb([[(tr(lg, "add_more"), "addnew"), (tr(lg, "to_list"), "lst")]]))
 
-    def ask_lang(self, chat):
-        self.tg.send(chat, TXT["uz"]["lang_pick"], kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")]]))
+    def ask_lang(self, uid, chat):
+        self.new_panel(uid, chat, TXT["uz"]["lang_pick"], kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")]]))
 
     def on_message(self, m):
         if m["chat"]["type"] != "private" or "from" not in m:
@@ -247,36 +281,38 @@ class App:
         if self.limited(uid):
             return
         u = L.ensure_user(self.db, uid, chat)
+        mine = lambda: m.get("message_id") and self.tg.delete(chat, m["message_id"])  # ёзганимиз чатда қолмасин
         if u["lang"] is None:
-            return self.ask_lang(chat)
+            mine()
+            return self.ask_lang(uid, chat)
         lg = u["lang"]
         cmd = text.split("@")[0].split()[0].lower().lstrip("/") if text.startswith("/") else MENU.get(text, "")
+        if cmd in ("start", "add", "list", "soon", "set", "cancel", "privacy", "help", "deleteme"):
+            mine()
+            L.clear_conv(self.db, uid)  # меню босилса, ярим қолган оқим тўхтайди
         if cmd == "start":
-            L.clear_conv(self.db, uid)
-            return self.tg.send(chat, tr(lg, "welcome"), main_kb(lg))
+            return self.new_panel(uid, chat, tr(lg, "welcome"), main_kb(lg))
         if cmd == "add":
             d = {}
-            L.set_conv(self.db, uid, "title", d)
             return self.wiz(uid, chat, d, "title")
         if cmd == "list":
             return self.show_list(uid, chat, lg)
         if cmd == "soon":
             return self.show_soon(uid, chat, u, lg)
         if cmd == "set":
-            return self.show_settings(chat, u)
+            return self.show_settings(uid, chat, u)
         if cmd == "cancel":
-            L.clear_conv(self.db, uid)
-            return self.tg.send(chat, tr(lg, "cancelled"), main_kb(lg))
+            return self.new_panel(uid, chat, tr(lg, "cancelled"), main_kb(lg))
         if cmd in ("privacy", "help"):
-            return self.tg.send(chat, tr(lg, "privacy"))
+            return self.new_panel(uid, chat, tr(lg, "privacy"), None)
         if cmd == "deleteme":
-            return self.tg.send(chat, tr(lg, "del_all_q"), kb([[(tr(lg, "del_all_yes"), "del:yes"), (tr(lg, "no"), "del:no")]]))
+            return self.new_panel(uid, chat, tr(lg, "del_all_q"), kb([[(tr(lg, "del_all_yes"), "del:yes"), (tr(lg, "no"), "del:no")]]))
         step, d = L.get_conv(self.db, uid)
+        mine()
         if step in TEXT_STEPS:
             self.on_text(uid, chat, step, d, text, lg)
-            self.tg.delete(chat, m["message_id"]) if "message_id" in m else None
         elif step is None:
-            self.tg.send(chat, tr(lg, "pick_menu"), main_kb(lg))
+            self.new_panel(uid, chat, tr(lg, "pick_menu"), main_kb(lg))
 
     def on_text(self, uid, chat, step, d, text, lg):
         if step == "title":
@@ -287,10 +323,25 @@ class App:
         elif step == "amount":
             d["amount"] = L.clean(text, 40)
             self.wiz(uid, chat, d)
-        elif step == "time_custom":
+        elif step == "day":  # тугма ўрнига рақам ёзса ҳам бўлади
+            v = L.parse_int(text, 1, 31)
+            if v:
+                d["day"] = v
+                self.wiz(uid, chat, d)
+        elif step == "date":
+            v = parse_date(text, self.today(L.get_user(self.db, uid)))
+            if v:
+                d["date"] = v.isoformat()
+                self.wiz(uid, chat, d)
+        elif step == "lead":
+            v = L.parse_int(text, 0, 7)
+            if v is not None:
+                d["lead"] = v
+                self.wiz(uid, chat, d)
+        elif step in ("time", "time_custom"):
             v = L.parse_time(text)
             if v is None:
-                return self.wiz(uid, chat, d, "time_custom", "\n⚠️ " + tr(lg, "bad_time"))
+                return self.wiz(uid, chat, d, step, "\n⚠️ " + tr(lg, "bad_time"))
             sel = set(d.get("sel", []))
             if len(sel) < 12:
                 sel.add(v)
@@ -299,15 +350,21 @@ class App:
         elif step == "snooze_custom":
             h = L.parse_hours(text)
             if h is None:
-                return self.tg.send(chat, tr(lg, "bad_hours"))
+                return self.panel(uid, chat, d.get("mid"), tr(lg, "later_custom_q") + "\n⚠️ " + tr(lg, "bad_hours"), None)
             L.clear_conv(self.db, uid)
-            if L.snooze(self.db, uid, d["oid"], self.now(), hours=h) is None:
-                return self.tg.send(chat, tr(lg, "closed"))
-            self.tg.send(chat, tr(lg, "later_ok", h=f"{h:g}"), main_kb(lg))
+            ok = L.snooze(self.db, uid, d["oid"], self.now(), hours=h)
+            self.tg.delete(chat, d.get("mid"))
+            self.new_panel(uid, chat, tr(lg, "later_ok", h=f"{h:g}") if ok else tr(lg, "closed"), main_kb(lg))
 
     def on_callback(self, c):
+        self.toast = ""
+        try:
+            self._on_callback(c)
+        finally:
+            self.tg.answer(c["id"], self.toast)
+
+    def _on_callback(self, c):
         uid, msg = c["from"]["id"], c.get("message")
-        self.tg.call("answerCallbackQuery", callback_query_id=c["id"])
         if not msg or msg["chat"]["type"] != "private" or self.limited(uid):
             return
         chat, mid, data = msg["chat"]["id"], msg["message_id"], c.get("data", "")
@@ -320,12 +377,12 @@ class App:
             L.set_user(self.db, uid, lang=arg)
             u = L.get_user(self.db, uid)
             if first:
-                self.tg.edit(chat, mid, tr(arg, "lang_set"))
-                return self.tg.send(chat, tr(arg, "welcome"), main_kb(arg))
-            self.tg.send(chat, tr(arg, "lang_set"), main_kb(arg))
-            return self.show_settings(chat, u, mid)
+                return self.new_panel(uid, chat, tr(arg, "welcome"), main_kb(arg))
+            tmp = self.tg.send(chat, tr(arg, "lang_set"), main_kb(arg))  # пастки тугмалар тили янгиланади
+            self.tg.delete(chat, ((tmp or {}).get("result") or {}).get("message_id"))
+            return self.show_settings(uid, chat, u, mid)
         if u["lang"] is None:
-            return self.ask_lang(chat)
+            return self.ask_lang(uid, chat)
         lg = u["lang"]
         step, d = L.get_conv(self.db, uid)
         if key in WIZ_KEYS:
@@ -340,6 +397,8 @@ class App:
             return self.wiz(uid, chat, d, "title")
         if key == "lst":
             return self.show_list(uid, chat, lg, mid)
+        if key == "set":
+            return self.show_settings(uid, chat, u, mid)
         if key == "ls" and arg.isdigit():
             return self.show_item(uid, chat, mid, int(arg), lg)
         if key in ("pz", "rm", "rmy") and arg.isdigit():
@@ -349,7 +408,7 @@ class App:
         elif key == "rp" and arg in ("0", "1", "2", "3", "6"):
             L.set_user(self.db, uid, repeat_h=float(arg))
         elif key == "snd":
-            return self.tg.send(chat, tr(lg, "sound_help"))
+            return self.panel(uid, chat, mid, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")]]))
         elif key == "del":
             if arg == "yes":
                 L.delete_user_data(self.db, uid)
@@ -357,7 +416,7 @@ class App:
             return self.tg.edit(chat, mid, tr(lg, "cancelled"))
         else:
             return
-        self.show_settings(chat, L.get_user(self.db, uid), mid)
+        self.show_settings(uid, chat, L.get_user(self.db, uid), mid)
 
     def wizard_cb(self, uid, chat, mid, key, arg, step, d, u, lg):
         if key == "cx":
@@ -409,24 +468,26 @@ class App:
             return
         if key == "dn":
             L.mark_done(self.db, uid, oid)
-            r = L.own_reminder(self.db, uid, o["reminder_id"])
-            return self.tg.edit(chat, mid, tr(lg, "done_msg", title=E(r["title"])))
+            self.toast = tr(lg, "b_done")
+            return self.tg.delete(chat, mid)  # бажарилган карточка чатда қолмайди
         if o["status"] != "pending":
-            return self.tg.edit(chat, mid, tr(lg, "closed"))
+            self.toast = tr(lg, "closed")
+            return self.tg.delete(chat, mid)
         if key == "sn":
             return self.tg.edit(chat, mid, tr(lg, "later_q"), snooze_kb(oid, lg))
         val = arg.split(":")[1] if ":" in arg else ""
         if val == "c":
-            d = {"oid": oid, "mid": mid}
-            L.set_conv(self.db, uid, "snooze_custom", d)
+            L.set_conv(self.db, uid, "snooze_custom", {"oid": oid, "mid": mid})
             return self.tg.edit(chat, mid, tr(lg, "later_custom_q"))
         if val == "t":
             L.snooze(self.db, uid, oid, self.now(), tomorrow=True)
-            return self.tg.edit(chat, mid, tr(lg, "later_tom"))
+            self.toast = tr(lg, "toast_tom")
+            return self.tg.delete(chat, mid)
         h = L.parse_hours(val)
         if h is not None:
             L.snooze(self.db, uid, oid, self.now(), hours=h)
-            self.tg.edit(chat, mid, tr(lg, "later_ok", h=val))
+            self.toast = tr(lg, "toast_later", h=val)
+            self.tg.delete(chat, mid)
 
     # ---------- рўйхатлар ----------
     def show_list(self, uid, chat, lg, mid=None):
@@ -436,8 +497,7 @@ class App:
         else:
             text = tr(lg, "list_title")
             markup = kb([[(("⏸ " if not r["active"] else "🔔 ") + r["title"], f"ls:{r['id']}")] for r in rows])
-        if not (mid and self.tg.edit(chat, mid, text, markup)):
-            self.tg.send(chat, text, markup)
+        self.panel(uid, chat, mid, text, markup)
 
     def show_item(self, uid, chat, mid, rid, lg):
         r = L.own_reminder(self.db, uid, rid)
@@ -468,18 +528,17 @@ class App:
             if ts and ts - now <= 30 * 86400:
                 items.append((ts, r))
         if not items:
-            return self.tg.send(chat, tr(lg, "soon_empty"), main_kb(lg))
+            return self.new_panel(uid, chat, tr(lg, "soon_empty"), main_kb(lg))
         lines = [f"🔔 <b>{self.fmt_ts(u, ts)}</b> · {E(r['title'])}" + (f" · {E(r['amount'])}" if r["amount"] else "") for ts, r in sorted(items, key=lambda x: x[0])]
-        self.tg.send(chat, tr(lg, "soon_title") + "\n\n" + "\n".join(lines), main_kb(lg))
+        self.new_panel(uid, chat, tr(lg, "soon_title") + "\n\n" + "\n".join(lines), main_kb(lg))
 
-    def show_settings(self, chat, u, mid=None):
+    def show_settings(self, uid, chat, u, mid=None):
         lg = u["lang"] or "uz"
         rep = tr(lg, "rep_off") if not u["repeat_h"] else tr(lg, "rep_val", h=f"{u['repeat_h']:g}")
         text = tr(lg, "settings", lang=LANG_NAME[lg], tz=f"{u['tz']:g}", rep=rep, qs=u["quiet_start"], qe=u["quiet_end"])
         markup = kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")], [(tr(lg, "tz5"), "tz:5"), (tr(lg, "tz3"), "tz:3")],
                      [(tr(lg, "rep_btn_off"), "rp:0")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 2, 3, 6)], [(tr(lg, "sound_btn"), "snd")]])
-        if not (mid and self.tg.edit(chat, mid, text, markup)):
-            self.tg.send(chat, text, markup)
+        self.panel(uid, chat, mid, text, markup)
 
     # ---------- цикл ----------
     def tick(self):
@@ -492,9 +551,31 @@ class App:
                 print("юбориб бўлмади:", type(e).__name__, flush=True)
 
 
+def poll(app, conn, offset, timeout=25):
+    """Telegram'дан янгиликларни олиб ишлайди; янги offset қайтаради."""
+    for up in app.tg.call("getUpdates", offset=offset, timeout=timeout, allowed_updates=["message", "callback_query"]).get("result", []):
+        offset = up["update_id"] + 1
+        if app.verbose:
+            print(time.strftime("%H:%M:%S"), "хабар келди:", "тугма" if "callback_query" in up else "матн", flush=True)
+        try:
+            if "message" in up:
+                app.on_message(up["message"])
+            elif "callback_query" in up:
+                app.on_callback(up["callback_query"])
+        except Exception as e:  # битта хато ботни тўхтатмайди
+            fr = traceback.extract_tb(e.__traceback__)[-1]
+            app.errors.append(f"{type(e).__name__}: {e} ({fr.name}:{fr.lineno})")
+            print("ИШЛОВ ХАТОСИ:", type(e).__name__, e, "— қатор", fr.lineno, fr.name, flush=True)
+    conn.execute("INSERT OR REPLACE INTO meta VALUES('offset',?)", (str(offset),))
+    conn.commit()
+    app.tick()
+    return offset
+
+
 def run():
     conn = L.connect(DB_PATH)
     app = App(conn, Tg(os.environ["TELEGRAM_BOT_TOKEN"]))
+    app.verbose = True
     try:
         print("Бот ишга тушди: @" + app.tg.call("getMe")["result"]["username"], flush=True)
     except Exception as e:
@@ -503,20 +584,7 @@ def run():
     offset = int(row["v"]) if row else 0
     while True:
         try:
-            for up in app.tg.call("getUpdates", offset=offset, timeout=25, allowed_updates=["message", "callback_query"]).get("result", []):
-                offset = up["update_id"] + 1
-                print(time.strftime("%H:%M:%S"), "хабар келди:", "тугма" if "callback_query" in up else "матн", flush=True)
-                try:
-                    if "message" in up:
-                        app.on_message(up["message"])
-                    elif "callback_query" in up:
-                        app.on_callback(up["callback_query"])
-                except Exception as e:  # битта хато ботни тўхтатмайди
-                    fr = traceback.extract_tb(e.__traceback__)[-1]
-                    print("ИШЛОВ ХАТОСИ:", type(e).__name__, e, "— қатор", fr.lineno, fr.name, flush=True)
-            conn.execute("INSERT OR REPLACE INTO meta VALUES('offset',?)", (str(offset),))
-            conn.commit()
-            app.tick()
+            offset = poll(app, conn, offset)
         except Exception as e:
             print("тармоқ хатоси:", type(e).__name__, flush=True)
             time.sleep(5)
