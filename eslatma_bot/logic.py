@@ -6,7 +6,7 @@ MAX_REMINDERS = 100
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(user_id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL,
   tz REAL NOT NULL DEFAULT 5, repeat_h REAL NOT NULL DEFAULT 3, quiet_start INTEGER NOT NULL DEFAULT 22,
-  quiet_end INTEGER NOT NULL DEFAULT 7, lang TEXT, panel_mid INTEGER);
+  quiet_end INTEGER NOT NULL DEFAULT 7, lang TEXT, panel_mid INTEGER, anchor_mid INTEGER, anchor_lang TEXT);
 CREATE TABLE IF NOT EXISTS reminders(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
   title TEXT NOT NULL, freq TEXT NOT NULL, day INTEGER, date TEXT, hhmm TEXT NOT NULL DEFAULT '09:00',
   lead_days INTEGER NOT NULL DEFAULT 0, amount TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1,
@@ -27,7 +27,7 @@ def connect(path):
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     cols = lambda t: {r[1] for r in conn.execute(f"PRAGMA table_info({t})")}
-    for t, c, ddl in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0")):
+    for t, c, ddl in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0")):
         if c not in cols(t):  # эски базани йўқотмасдан янгилаш
             conn.execute(f"ALTER TABLE {t} ADD COLUMN {c} {ddl}")
     conn.commit()
@@ -67,7 +67,7 @@ def get_user(conn, uid):
 
 def set_user(conn, uid, **kw):
     for k in kw:
-        assert k in ("lang", "tz", "repeat_h", "panel_mid")
+        assert k in ("lang", "tz", "repeat_h", "panel_mid", "anchor_mid", "anchor_lang")
     conn.execute("UPDATE users SET " + ",".join(f"{k}=?" for k in kw) + " WHERE user_id=?", (*kw.values(), uid))
     conn.commit()
 

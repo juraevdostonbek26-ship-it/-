@@ -44,6 +44,7 @@ TXT = {
  "privacy": "🔒 <b>Maxfiylik</b>\n• Eslatmalaringizni faqat siz ko'rasiz — boshqa foydalanuvchilar ularni ko'ra olmaydi.\n• Bot guruhlarda ishlamaydi, faqat shaxsiy chatda.\n• Hamma ma'lumotni o'chirish: /deleteme\n• Bot egasi texnik jihatdan serverdagi bazani ko'ra oladi — shuning uchun juda maxfiy ma'lumot yozmang.",
  "del_all_q": "⚠️ Barcha eslatma va sozlamalaringiz <b>butunlay o'chadi</b>. Davom etamizmi?", "del_all_yes": "🗑 Ha, o'chir", "all_deleted": "🗑 Hamma ma'lumotingiz o'chirildi. Qaytish uchun /start.",
  "lang_set": "✅ Til: O'zbekcha", "back_set": "◀ Sozlamalar",
+ "anchor": "🏠 Asosiy menyu pastda ↓", "home": "🏠 <b>Asosiy menyu</b>\n\nNima qilamiz?", "btn_home": "🏠 Asosiy menyu", "back_step": "◀ Orqaga",
  "toast_later": "⏰ {h} soatdan keyin eslataman", "toast_tom": "⏰ Ertaga eslataman",
 },
 "ru": {
@@ -90,6 +91,7 @@ TXT = {
  "privacy": "🔒 <b>Конфиденциальность</b>\n• Ваши напоминания видите только вы — другие пользователи их не увидят.\n• Бот не работает в группах, только в личном чате.\n• Удалить все данные: /deleteme\n• Владелец бота технически может видеть базу на сервере — поэтому не пишите сверхсекретное.",
  "del_all_q": "⚠️ Все ваши напоминания и настройки будут <b>удалены навсегда</b>. Продолжить?", "del_all_yes": "🗑 Да, удалить", "all_deleted": "🗑 Все ваши данные удалены. Чтобы вернуться — /start.",
  "lang_set": "✅ Язык: Русский", "back_set": "◀ Настройки",
+ "anchor": "🏠 Главное меню внизу ↓", "home": "🏠 <b>Главное меню</b>\n\nЧто делаем?", "btn_home": "🏠 Главное меню", "back_step": "◀ Назад",
  "toast_later": "⏰ Напомню через {h} ч", "toast_tom": "⏰ Напомню завтра",
 },
 }

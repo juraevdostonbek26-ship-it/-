@@ -16,7 +16,7 @@ DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath
 E = lambda s: html.escape(s, quote=False)  # апостроф ўзгармасин
 HOURS = [f"{h:02d}:00" for h in range(7, 23)]
 MENU = {tr(lg, k): c for lg in TXT for k, c in (("m_add", "add"), ("m_list", "list"), ("m_soon", "soon"), ("m_set", "set"))}
-WIZ_KEYS = {"fr", "dy", "wd", "cal", "cd", "tm", "tmd", "tmc", "ld", "am", "cx"}
+WIZ_KEYS = {"fr", "dy", "wd", "cal", "cd", "tm", "tmd", "tmc", "ld", "am", "cx", "bk"}
 TEXT_STEPS = {"title", "amount", "time_custom", "snooze_custom", "day", "date", "time", "lead"}
 
 
@@ -129,7 +129,34 @@ def snooze_kb(oid, lg):
 
 
 def cancel_row(lg):
-    return [(tr(lg, "cancel"), "cx")]
+    return [(tr(lg, "back_step"), "bk"), (tr(lg, "cancel"), "cx")]
+
+
+def home_row(lg):
+    return [(tr(lg, "btn_home"), "home")]
+
+
+def kb_home(lg):
+    return kb([home_row(lg)])
+
+
+def home_markup(lg):
+    return kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")]])
+
+
+ORDER = ("amount", "lead", "times", "day", "date", "freq", "title")
+
+
+def go_back(d):
+    """Охирги жавобни олиб ташлайди (бир қадам орқага)."""
+    for k in ORDER:
+        if k in d:
+            del d[k]
+            if k == "freq":
+                for x in ("day", "date", "times", "lead", "amount"):
+                    d.pop(x, None)
+            return k
+    return None
 
 
 def cal_markup(lg, ym, today):
@@ -269,7 +296,21 @@ class App:
         nf = L.next_fire(self.db, uid, r, self.now())
         text = tr(lg, "saved", title=E(r["title"]), when=when_of(r, lg) + lead_of(r["lead_days"], lg), times=", ".join(L.times_of(r)),
                   extra=(f"\n💰 {E(r['amount'])}" if r["amount"] else ""), next=self.fmt_ts(u, nf) if nf else tr(lg, "none"))
-        self.put(uid, chat, d, text, kb([[(tr(lg, "add_more"), "addnew"), (tr(lg, "to_list"), "lst")]]))
+        self.put(uid, chat, d, text, kb([[(tr(lg, "add_more"), "addnew"), (tr(lg, "to_list"), "lst")], home_row(lg)]))
+
+    def ensure_anchor(self, uid, chat, lg, force=False):
+        """Пастки меню (reply keyboard) ЎЧИРИЛМАЙДИГАН алоҳида хабарга боғланган: Telegram уни ўчирилса, менюни ҳам олиб ташлайди."""
+        u = L.get_user(self.db, uid)
+        if not force and u["anchor_mid"] and u["anchor_lang"] == lg:
+            return
+        r = self.tg.send(chat, tr(lg, "anchor"), main_kb(lg))
+        mid = ((r or {}).get("result") or {}).get("message_id")
+        L.set_user(self.db, uid, anchor_mid=mid, anchor_lang=lg)
+        if u["anchor_mid"] and u["anchor_mid"] != mid:
+            self.tg.delete(chat, u["anchor_mid"])
+
+    def show_home(self, uid, chat, lg, mid=None):
+        self.panel(uid, chat, mid, tr(lg, "home"), home_markup(lg))
 
     def ask_lang(self, uid, chat):
         self.new_panel(uid, chat, TXT["uz"]["lang_pick"], kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")]]))
@@ -287,11 +328,12 @@ class App:
             return self.ask_lang(uid, chat)
         lg = u["lang"]
         cmd = text.split("@")[0].split()[0].lower().lstrip("/") if text.startswith("/") else MENU.get(text, "")
+        self.ensure_anchor(uid, chat, lg, force=(cmd == "start"))
         if cmd in ("start", "add", "list", "soon", "set", "cancel", "privacy", "help", "deleteme"):
             mine()
             L.clear_conv(self.db, uid)  # меню босилса, ярим қолган оқим тўхтайди
         if cmd == "start":
-            return self.new_panel(uid, chat, tr(lg, "welcome"), main_kb(lg))
+            return self.new_panel(uid, chat, tr(lg, "welcome"), home_markup(lg))
         if cmd == "add":
             d = {}
             return self.wiz(uid, chat, d, "title")
@@ -302,9 +344,9 @@ class App:
         if cmd == "set":
             return self.show_settings(uid, chat, u)
         if cmd == "cancel":
-            return self.new_panel(uid, chat, tr(lg, "cancelled"), main_kb(lg))
+            return self.show_home(uid, chat, lg)
         if cmd in ("privacy", "help"):
-            return self.new_panel(uid, chat, tr(lg, "privacy"), None)
+            return self.new_panel(uid, chat, tr(lg, "privacy"), kb_home(lg))
         if cmd == "deleteme":
             return self.new_panel(uid, chat, tr(lg, "del_all_q"), kb([[(tr(lg, "del_all_yes"), "del:yes"), (tr(lg, "no"), "del:no")]]))
         step, d = L.get_conv(self.db, uid)
@@ -312,7 +354,7 @@ class App:
         if step in TEXT_STEPS:
             self.on_text(uid, chat, step, d, text, lg)
         elif step is None:
-            self.new_panel(uid, chat, tr(lg, "pick_menu"), main_kb(lg))
+            self.new_panel(uid, chat, tr(lg, "pick_menu"), home_markup(lg))
 
     def on_text(self, uid, chat, step, d, text, lg):
         if step == "title":
@@ -354,7 +396,7 @@ class App:
             L.clear_conv(self.db, uid)
             ok = L.snooze(self.db, uid, d["oid"], self.now(), hours=h)
             self.tg.delete(chat, d.get("mid"))
-            self.new_panel(uid, chat, tr(lg, "later_ok", h=f"{h:g}") if ok else tr(lg, "closed"), main_kb(lg))
+            self.new_panel(uid, chat, tr(lg, "later_ok", h=f"{h:g}") if ok else tr(lg, "closed"), kb_home(lg))
 
     def on_callback(self, c):
         self.toast = ""
@@ -376,14 +418,23 @@ class App:
             first = u["lang"] is None
             L.set_user(self.db, uid, lang=arg)
             u = L.get_user(self.db, uid)
+            self.ensure_anchor(uid, chat, arg)  # пастки меню янги тилда
             if first:
-                return self.new_panel(uid, chat, tr(arg, "welcome"), main_kb(arg))
-            tmp = self.tg.send(chat, tr(arg, "lang_set"), main_kb(arg))  # пастки тугмалар тили янгиланади
-            self.tg.delete(chat, ((tmp or {}).get("result") or {}).get("message_id"))
+                return self.new_panel(uid, chat, tr(arg, "welcome"), home_markup(arg))
             return self.show_settings(uid, chat, u, mid)
         if u["lang"] is None:
             return self.ask_lang(uid, chat)
         lg = u["lang"]
+        self.ensure_anchor(uid, chat, lg)
+        if key == "home":
+            L.clear_conv(self.db, uid)
+            return self.show_home(uid, chat, lg, mid)
+        if key == "go" and arg in ("add", "list", "soon", "set"):
+            L.clear_conv(self.db, uid)
+            if arg == "add":
+                return self.wiz(uid, chat, {"mid": mid}, "title")
+            return {"list": lambda: self.show_list(uid, chat, lg, mid), "soon": lambda: self.show_soon(uid, chat, u, lg, mid),
+                    "set": lambda: self.show_settings(uid, chat, u, mid)}[arg]()
         step, d = L.get_conv(self.db, uid)
         if key in WIZ_KEYS:
             if step is None or d.get("mid") != mid:
@@ -408,7 +459,7 @@ class App:
         elif key == "rp" and arg in ("0", "1", "2", "3", "6"):
             L.set_user(self.db, uid, repeat_h=float(arg))
         elif key == "snd":
-            return self.panel(uid, chat, mid, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")]]))
+            return self.panel(uid, chat, mid, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
         elif key == "del":
             if arg == "yes":
                 L.delete_user_data(self.db, uid)
@@ -421,7 +472,14 @@ class App:
     def wizard_cb(self, uid, chat, mid, key, arg, step, d, u, lg):
         if key == "cx":
             L.clear_conv(self.db, uid)
-            return self.tg.edit(chat, mid, tr(lg, "cancelled"))
+            return self.show_home(uid, chat, lg, mid)
+        if key == "bk":
+            if step == "time_custom":
+                return self.wiz(uid, chat, d, "time")
+            if go_back(d) is None:
+                L.clear_conv(self.db, uid)
+                return self.show_home(uid, chat, lg, mid)
+            return self.wiz(uid, chat, d)
         if key == "fr" and step == "freq" and arg in ("once", "monthly", "weekly", "daily"):
             d["freq"] = arg
         elif key in ("dy", "wd") and step in ("day", "wd") and (v := L.parse_int(arg, 0 if key == "wd" else 1, 6 if key == "wd" else 31)) is not None:
@@ -492,18 +550,15 @@ class App:
     # ---------- рўйхатлар ----------
     def show_list(self, uid, chat, lg, mid=None):
         rows = self.db.execute("SELECT * FROM reminders WHERE user_id=? ORDER BY id", (uid,)).fetchall()
-        if not rows:
-            text, markup = tr(lg, "list_empty"), None
-        else:
-            text = tr(lg, "list_title")
-            markup = kb([[(("⏸ " if not r["active"] else "🔔 ") + r["title"], f"ls:{r['id']}")] for r in rows])
+        text = tr(lg, "list_title") if rows else tr(lg, "list_empty")
+        markup = kb([[(("⏸ " if not r["active"] else "🔔 ") + r["title"], f"ls:{r['id']}")] for r in rows] + [home_row(lg)])
         self.panel(uid, chat, mid, text, markup)
 
     def show_item(self, uid, chat, mid, rid, lg):
         r = L.own_reminder(self.db, uid, rid)
         if not r:
             return
-        self.tg.edit(chat, mid, describe(r, lg), kb([[(tr(lg, "resume" if not r["active"] else "pause"), f"pz:{rid}"), (tr(lg, "del"), f"rm:{rid}")], [(tr(lg, "back"), "lst")]]))
+        self.tg.edit(chat, mid, describe(r, lg), kb([[(tr(lg, "resume" if not r["active"] else "pause"), f"pz:{rid}"), (tr(lg, "del"), f"rm:{rid}")], [(tr(lg, "back"), "lst"), (tr(lg, "btn_home"), "home")]]))
 
     def item_action(self, uid, chat, mid, key, rid, lg):
         r = L.own_reminder(self.db, uid, rid)
@@ -514,13 +569,13 @@ class App:
             self.db.commit()
             return self.show_item(uid, chat, mid, rid, lg)
         if key == "rm":
-            return self.tg.edit(chat, mid, tr(lg, "del_q", title=E(r["title"])), kb([[(tr(lg, "yes_del"), f"rmy:{rid}"), (tr(lg, "no"), f"ls:{rid}")]]))
+            return self.tg.edit(chat, mid, tr(lg, "del_q", title=E(r["title"])), kb([[(tr(lg, "yes_del"), f"rmy:{rid}"), (tr(lg, "no"), f"ls:{rid}")], home_row(lg)]))
         self.db.execute("DELETE FROM occ WHERE reminder_id=? AND user_id=?", (rid, uid))
         self.db.execute("DELETE FROM reminders WHERE id=? AND user_id=?", (rid, uid))
         self.db.commit()
-        self.tg.edit(chat, mid, tr(lg, "deleted"), kb([[(tr(lg, "back"), "lst")]]))
+        self.tg.edit(chat, mid, tr(lg, "deleted"), kb([[(tr(lg, "back"), "lst"), (tr(lg, "btn_home"), "home")]]))
 
-    def show_soon(self, uid, chat, u, lg):
+    def show_soon(self, uid, chat, u, lg, mid=None):
         now = self.now()
         items = []
         for r in self.db.execute("SELECT * FROM reminders WHERE user_id=? AND active=1", (uid,)).fetchall():
@@ -528,16 +583,16 @@ class App:
             if ts and ts - now <= 30 * 86400:
                 items.append((ts, r))
         if not items:
-            return self.new_panel(uid, chat, tr(lg, "soon_empty"), main_kb(lg))
+            return self.panel(uid, chat, mid, tr(lg, "soon_empty"), kb_home(lg))
         lines = [f"🔔 <b>{self.fmt_ts(u, ts)}</b> · {E(r['title'])}" + (f" · {E(r['amount'])}" if r["amount"] else "") for ts, r in sorted(items, key=lambda x: x[0])]
-        self.new_panel(uid, chat, tr(lg, "soon_title") + "\n\n" + "\n".join(lines), main_kb(lg))
+        self.panel(uid, chat, mid, tr(lg, "soon_title") + "\n\n" + "\n".join(lines), kb_home(lg))
 
     def show_settings(self, uid, chat, u, mid=None):
         lg = u["lang"] or "uz"
         rep = tr(lg, "rep_off") if not u["repeat_h"] else tr(lg, "rep_val", h=f"{u['repeat_h']:g}")
         text = tr(lg, "settings", lang=LANG_NAME[lg], tz=f"{u['tz']:g}", rep=rep, qs=u["quiet_start"], qe=u["quiet_end"])
         markup = kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")], [(tr(lg, "tz5"), "tz:5"), (tr(lg, "tz3"), "tz:3")],
-                     [(tr(lg, "rep_btn_off"), "rp:0")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 2, 3, 6)], [(tr(lg, "sound_btn"), "snd")]])
+                     [(tr(lg, "rep_btn_off"), "rp:0")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 2, 3, 6)], [(tr(lg, "sound_btn"), "snd")], home_row(lg)])
         self.panel(uid, chat, mid, text, markup)
 
     # ---------- цикл ----------

@@ -110,6 +110,7 @@ class FakeTelegram:
         c["msgs"][mid] = {"from": "bot", "text": b["text"], "markup": mk if mk and "inline_keyboard" in mk else None, "deleted": False}
         if mk and "keyboard" in mk:
             c["kbd"] = [x["text"] for row in mk["keyboard"] for x in row]
+            c["kbd_mid"] = mid
         return {"message_id": mid}
 
     def m_editMessageText(self, b):
@@ -128,6 +129,9 @@ class FakeTelegram:
         if not m or m["deleted"]:
             raise ValueError("message to delete not found")
         m["deleted"] = True
+        c = self.chat(b["chat_id"])
+        if c.get("kbd_mid") == b["message_id"]:  # ҳақиқий Telegram'да кузатилган: ташувчи хабар ўчса, пастки меню ҳам йўқолади
+            c["kbd"], c["kbd_mid"] = None, None
         return True
 
     def m_answerCallbackQuery(self, b):
