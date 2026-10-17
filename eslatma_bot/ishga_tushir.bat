@@ -2,7 +2,7 @@
 chcp 65001 >nul
 cd /d "%~dp0"
 echo.
-echo  ESLATMA BOT
+echo  DOJU ESLATMA KOTIBI
 echo  Tokenni shu yerga qo^yib Enter bosing:
 set /p TELEGRAM_BOT_TOKEN=Token: 
 echo.
