@@ -97,3 +97,5 @@
 | J9 | Менюда «📩 Асосчига ёзиш»: хат Dostonbek'га бот орқали боради, ёзувчи кимлиги кўрсатилмайди; кунига 5 тагача; `/id` буйруғи; Render'да ADMIN_ID env керак | ✅ (ADMIN_ID қўйилгач ҳақиқий Telegram'да синалади) | test_feedback_reaches_admin_anonymously_with_daily_limit, test_feedback_without_admin_is_kept_and_sent_later |
 | J10 | Шифрлаш: КЕРАК ЭМАС (1Б) | ✅ қарор | Қарорлар журналида |
 | J11 | Иккинчи агент: бирга ўйлаймиз | ⏳ | Кейин |
+| J12 | Аватар ва фонга 4–5 тадан вариант; овоз битта; ўрнатиш йўриқномаси бир йўла | 🟡 | `dizayn/avatar_1..5.png`, `fon_1..5.png`, `_avatarlar.png`, `_fonlar.png`; танлов кутилмоқда; йўриқнома чатда берилди |
+| J13 | Сервер ҳақида FASO маълумотлари олинди (Render Free, Neon, keepAlive Apps Script + cron-job.org) | ✅ | Хаританинг қарорлар журналида |
