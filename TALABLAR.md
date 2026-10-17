@@ -101,3 +101,4 @@
 | J13 | Сервер ҳақида FASO маълумотлари олинди (Render Free, Neon, keepAlive Apps Script + cron-job.org) | ✅ | Хаританинг қарорлар журналида |
 | J14 | Брендим «DOJU»: аватар — календар ичида DOJU; фонга бренд, кўзни чарчатмайдиган ранглар (Claude танлайди); бот линки катта ёзилган карточка. Савол: бренд яхшими? | 🟡 | `dizayn/avatar_doju.png`, `fon_doju_tungi.png`, `fon_doju_kunduzgi.png`, `karta_doju.png` — Dostonbek тасдиғи кутилмоқда. Эски 1–5 вариантлар ўчирилди (ёқмади) |
 | J15 | Овоз файли Telegram'да кўринмади (диалог фақат .mp3 кўрсатади) | 🟡 | `dizayn/eslatma_melodiya.mp3` яратилди (ffprobe: узунлик/ҳажм текширилди); Dostonbek ўрнатиб синайди |
+| J16 | Фон БАРЧА фойдаланувчига бир хил кўринсинми (BotFather орқали)? | ⚠️ чекловли | Telegram чат фонини фақат ҳар одам ўзи қўяди, бот/BotFather ўзгартира олмайди. Ўрнига: BotFather → `/setdescriptionpic` баннер (640×360) — бот очилганда ҳамма кўради: `dizayn/bot_banner_640x360.png` |
