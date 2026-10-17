@@ -15,9 +15,9 @@ for _s in (sys.stdout, sys.stderr):  # Windows ойнаси ўзбекча ҳа�
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db"))
 E = lambda s: html.escape(s, quote=False)  # апостроф ўзгармасин
 HOURS = [f"{h:02d}:00" for h in range(7, 23)]
-MENU = {tr(lg, k): c for lg in TXT for k, c in (("m_add", "add"), ("m_list", "list"), ("m_soon", "soon"), ("m_set", "set"))}
+MENU = {tr(lg, k): c for lg in TXT for k, c in (("m_add", "add"), ("m_list", "list"), ("m_soon", "soon"), ("m_set", "set"), ("m_fb", "feedback"))}
 WIZ_KEYS = {"fr", "dy", "wd", "cal", "cd", "tm", "tmd", "tmc", "ld", "am", "cx", "bk"}
-TEXT_STEPS = {"title", "amount", "time_custom", "snooze_custom", "day", "date", "time", "lead"}
+TEXT_STEPS = {"title", "amount", "time_custom", "snooze_custom", "day", "date", "time", "lead", "feedback"}
 
 
 def kb(rows):
@@ -26,7 +26,7 @@ def kb(rows):
 
 def main_kb(lg):
     r = lambda *k: [{"text": tr(lg, x)} for x in k]
-    return {"keyboard": [r("m_add", "m_list"), r("m_soon", "m_set")], "resize_keyboard": True, "is_persistent": True}
+    return {"keyboard": [r("m_add", "m_list"), r("m_soon", "m_set"), r("m_fb")], "resize_keyboard": True, "is_persistent": True}
 
 
 class Tg:
@@ -143,7 +143,7 @@ def kb_home(lg):
 
 
 def home_markup(lg):
-    return kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")]])
+    return kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")], [(tr(lg, "m_fb"), "go:fb")]])
 
 
 ORDER = ("amount", "lead", "times", "day", "date", "freq", "title")
@@ -244,6 +244,7 @@ class App:
         self.toast = ""
         self.errors = []
         self.verbose = False
+        self.admin_chat = int(os.environ.get("ADMIN_ID", "0") or 0)  # асосчининг Telegram ID'си (махфий эмас, лекин env'да)
 
     def limited(self, uid):
         q, t = self.hits[uid], self.now()
@@ -342,7 +343,7 @@ class App:
         lg = u["lang"]
         cmd = text.split("@")[0].split()[0].lower().lstrip("/") if text.startswith("/") else MENU.get(text, "")
         self.ensure_anchor(uid, chat, lg, force=(cmd == "start"))
-        if cmd in ("start", "add", "list", "soon", "set", "cancel", "privacy", "help", "deleteme"):
+        if cmd in ("start", "add", "list", "soon", "set", "cancel", "privacy", "help", "deleteme", "feedback", "id"):
             mine()
             L.clear_conv(self.db, uid)  # меню босилса, ярим қолган оқим тўхтайди
         if cmd == "start":
@@ -358,6 +359,10 @@ class App:
             return self.show_settings(uid, chat, u)
         if cmd == "cancel":
             return self.show_home(uid, chat, lg)
+        if cmd == "id":
+            return self.new_panel(uid, chat, tr(lg, "id_is", id=uid), kb_home(lg))
+        if cmd == "feedback":
+            return self.ask_feedback(uid, chat, lg, None)
         if cmd in ("privacy", "help"):
             return self.new_panel(uid, chat, tr(lg, "privacy"), kb_home(lg))
         if cmd == "deleteme":
@@ -373,7 +378,17 @@ class App:
             else:
                 self.new_panel(uid, chat, tr(lg, "pick_menu"), home_markup(lg))
 
+    def ask_feedback(self, uid, chat, lg, mid):
+        self.set_conv(uid, "feedback", {})
+        self.panel(uid, chat, mid, tr(lg, "fb_q"), kb_home(lg))
+
     def on_text(self, uid, chat, step, d, text, lg):
+        if step == "feedback":
+            L.clear_conv(self.db, uid)
+            fid = L.add_feedback(self.db, uid, text, self.now())
+            if fid:
+                self.deliver_feedback()
+            return self.new_panel(uid, chat, tr(lg, "fb_ok" if fid else "fb_limit"), kb_home(lg))
         if step == "title":
             v = L.clean(text, 80)
             if v:
@@ -447,10 +462,12 @@ class App:
         if key == "home":
             L.clear_conv(self.db, uid)
             return self.show_home(uid, chat, lg, mid)
-        if key == "go" and arg in ("add", "list", "soon", "set"):
+        if key == "go" and arg in ("add", "list", "soon", "set", "fb"):
             L.clear_conv(self.db, uid)
             if arg == "add":
                 return self.wiz(uid, chat, {"mid": mid}, "title")
+            if arg == "fb":
+                return self.ask_feedback(uid, chat, lg, mid)
             return {"list": lambda: self.show_list(uid, chat, lg, mid), "soon": lambda: self.show_soon(uid, chat, u, lg, mid),
                     "set": lambda: self.show_settings(uid, chat, u, mid)}[arg]()
         step, d = self.get_conv(uid)
@@ -478,8 +495,8 @@ class App:
             return self.start_edit(uid, chat, mid, arg, lg)
         if key == "tz" and arg in ("5", "3"):
             L.set_user(self.db, uid, tz=float(arg))
-        elif key == "rp" and arg in ("0", "1", "2", "3", "6"):
-            L.set_user(self.db, uid, repeat_h=float(arg))
+        elif key == "rp" and arg in ("0", "m", "1", "3", "6"):
+            L.set_user(self.db, uid, repeat_h=0.016667 if arg == "m" else float(arg))
         elif key == "dg" and arg in ("off", "7", "8", "9"):
             L.set_user(self.db, uid, digest_hour=None if arg == "off" else int(arg), digest_date=None)
         elif key == "snd":
@@ -488,7 +505,7 @@ class App:
             if arg == "yes":
                 L.delete_user_data(self.db, uid)
                 return self.tg.edit(chat, mid, tr(lg, "all_deleted"))
-            return self.tg.edit(chat, mid, tr(lg, "cancelled"))
+            return self.tg.edit(chat, mid, tr(lg, "cancelled"), kb_home(lg))
         else:
             return
         self.show_settings(uid, chat, L.get_user(self.db, uid), mid)
@@ -662,11 +679,11 @@ class App:
 
     def show_settings(self, uid, chat, u, mid=None):
         lg = u["lang"] or "uz"
-        rep = tr(lg, "rep_off") if not u["repeat_h"] else tr(lg, "rep_val", h=f"{u['repeat_h']:g}")
+        rep = tr(lg, "rep_off") if not u["repeat_h"] else tr(lg, "rep_m") if u["repeat_h"] < 0.1 else tr(lg, "rep_val", h=f"{u['repeat_h']:g}")
         dg = tr(lg, "dg_off") if u["digest_hour"] is None else f"{u['digest_hour']:02d}:00"
         text = tr(lg, "settings", lang=LANG_NAME[lg], tz=f"{u['tz']:g}", rep=rep, qs=u["quiet_start"], qe=u["quiet_end"], dg=dg)
         markup = kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")], [(tr(lg, "tz5"), "tz:5"), (tr(lg, "tz3"), "tz:3")],
-                     [(tr(lg, "rep_btn_off"), "rp:0")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 2, 3, 6)], [(tr(lg, "dg_btn_off"), "dg:off")] + [(tr(lg, "dg_btn", h=f"{h:02d}"), f"dg:{h}") for h in (7, 8, 9)], [(tr(lg, "sound_btn"), "snd")], home_row(lg)])
+                     [(tr(lg, "rep_btn_off"), "rp:0"), (tr(lg, "rep_btn_m"), "rp:m")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 3, 6)], [(tr(lg, "dg_btn_off"), "dg:off")] + [(tr(lg, "dg_btn", h=f"{h:02d}"), f"dg:{h}") for h in (7, 8, 9)], [(tr(lg, "sound_btn"), "snd")], home_row(lg)])
         self.panel(uid, chat, mid, text, markup)
 
     # ---------- цикл ----------
@@ -691,8 +708,21 @@ class App:
                 mid = ((r or {}).get("result") or {}).get("message_id")
             L.set_user(self.db, uid, digest_mid=mid)
 
+    def deliver_feedback(self):
+        """Хатларни асосчига юборади (юборилмаганини кейинроқ қайта уринади). Юборувчи кимлиги КЎРСАТИЛМАЙДИ."""
+        if not self.admin_chat:
+            return
+        for f in L.unsent_feedback(self.db):
+            try:
+                self.tg.send(self.admin_chat, f"📩 <b>Fikr #{f['id']}</b>\n\n{E(f['text'])}")
+                L.mark_feedback_sent(self.db, f["id"])
+            except Exception as e:
+                print("хат юборилмади:", type(e).__name__, flush=True)
+                return
+
     def tick(self):
         now = self.now()
+        self.deliver_feedback()
         L.sync(self.db, now)
         try:
             self.send_digests(now)

@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 MAX_REMINDERS = 100
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(user_id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL,
-  tz REAL NOT NULL DEFAULT 5, repeat_h REAL NOT NULL DEFAULT 3, quiet_start INTEGER NOT NULL DEFAULT 22,
+  tz REAL NOT NULL DEFAULT 5, repeat_h REAL NOT NULL DEFAULT 0.016667, quiet_start INTEGER NOT NULL DEFAULT 22,
   quiet_end INTEGER NOT NULL DEFAULT 7, lang TEXT, panel_mid INTEGER, anchor_mid INTEGER, anchor_lang TEXT, digest_hour INTEGER, digest_date TEXT, digest_mid INTEGER);
 CREATE TABLE IF NOT EXISTS reminders(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
   title TEXT NOT NULL, freq TEXT NOT NULL, day INTEGER, date TEXT, hhmm TEXT NOT NULL DEFAULT '09:00',
@@ -17,8 +17,11 @@ CREATE TABLE IF NOT EXISTS occ(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INT
   next_ts REAL NOT NULL, sent_count INTEGER NOT NULL DEFAULT 0, card_mid INTEGER, UNIQUE(reminder_id, due));
 CREATE TABLE IF NOT EXISTS conv(user_id INTEGER PRIMARY KEY, step TEXT NOT NULL, data TEXT NOT NULL, ts REAL NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
+CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, text TEXT NOT NULL,
+  ts REAL NOT NULL, sent INTEGER NOT NULL DEFAULT 0);
 """
-USER_TABLES = ("occ", "reminders", "conv", "users")
+USER_TABLES = ("occ", "reminders", "conv", "feedback", "users")
+FEEDBACK_PER_DAY = 5
 
 
 def connect(path):
@@ -30,6 +33,9 @@ def connect(path):
     for t, c, ddl in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("users", "digest_hour", "INTEGER"), ("users", "digest_date", "TEXT"), ("users", "digest_mid", "INTEGER"), ("conv", "ts", "REAL NOT NULL DEFAULT 0"), ("occ", "card_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0")):
         if c not in cols(t):  # эски базани йўқотмасдан янгилаш
             conn.execute(f"ALTER TABLE {t} ADD COLUMN {c} {ddl}")
+    if not conn.execute("SELECT 1 FROM meta WHERE k='rep_1min'").fetchone():  # 2026-10-17: стандарт такрор 3 соат → 1 дақиқа (барча учун)
+        conn.execute("UPDATE users SET repeat_h=0.016667 WHERE repeat_h=3")
+        conn.execute("INSERT INTO meta VALUES('rep_1min','1')")
     conn.commit()
     if new:
         os.chmod(path, 0o600)  # базани фақат эгаси ўқийди
@@ -75,6 +81,29 @@ def set_user(conn, uid, **kw):
 def delete_user_data(conn, uid):
     for t in USER_TABLES:
         conn.execute(f"DELETE FROM {t} WHERE user_id=?", (uid,))
+    conn.commit()
+
+
+# ---------- асосчига хат ----------
+def add_feedback(conn, uid, text, now):
+    """Хатни сақлайди; кунига FEEDBACK_PER_DAY тадан ортиқ бўлмайди. id ёки None (лимит/бўш матн)."""
+    text = (text or "").replace("\x00", "").strip()[:1000]
+    if not text:
+        return None
+    n = conn.execute("SELECT COUNT(*) FROM feedback WHERE user_id=? AND ts>?", (uid, now - 86400)).fetchone()[0]
+    if n >= FEEDBACK_PER_DAY:
+        return None
+    cur = conn.execute("INSERT INTO feedback(user_id, text, ts) VALUES(?,?,?)", (uid, text, now))
+    conn.commit()
+    return cur.lastrowid
+
+
+def unsent_feedback(conn):
+    return conn.execute("SELECT id, text FROM feedback WHERE sent=0 ORDER BY id LIMIT 20").fetchall()
+
+
+def mark_feedback_sent(conn, fid):
+    conn.execute("UPDATE feedback SET sent=1 WHERE id=?", (fid,))
     conn.commit()
 
 

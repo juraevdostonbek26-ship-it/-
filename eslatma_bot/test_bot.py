@@ -140,6 +140,7 @@ def test_weekly_and_daily():
 
 def test_multi_times_then_repeat_then_next_day():
     app, db, tg, clk = make(); start(app)
+    L.set_user(db, 1, repeat_h=3)  # узун оралиқ мантиғини синаш (стандарт энди 1 дақиқа)
     add_monthly(app, db, 1, "Ijara", 5, ("09:00", "12:00", "18:00"))
     for h, mi, cnt in ((9, 1, 1), (11, 0, 1), (12, 1, 2), (18, 1, 3)):
         clk.t = ts(2026, 11, 5, h, mi); app.tick(); assert len(sent(tg)) == cnt, (h, len(sent(tg)))
@@ -177,6 +178,7 @@ def test_created_today_after_time_does_not_fire_immediately():
 
 def test_quiet_hours_only_limit_repeats():
     app, db, tg, clk = make(); start(app)
+    L.set_user(db, 1, repeat_h=3)  # узун оралиқ мантиғини синаш (стандарт энди 1 дақиқа)
     add_monthly(app, db, 1, "Kech", 5, ("20:00",))
     clk.t = ts(2026, 11, 5, 20, 1); app.tick(); assert len(sent(tg)) == 1
     assert db.execute("select next_ts from occ").fetchone()[0] == ts(2026, 11, 6, 20, 0)  # 23:00 тинч соат -> эртага
@@ -275,3 +277,18 @@ def test_logic_layer_rejects_foreign_ids_by_itself():
     assert snap() == before
     # ўзиники ишлайди
     assert L.skip_next(db, 1, r1, clk.t) is not None
+
+
+def test_default_repeat_is_every_minute_until_done_and_stops_in_quiet_hours():
+    app, db, tg, clk = make(); start(app)
+    assert L.get_user(db, 1)["repeat_h"] < 0.1
+    add_monthly(app, db, 1, "Kech", 5, ("20:00",))
+    clk.t = ts(2026, 11, 5, 20, 1); app.tick(); assert len(sent(tg)) == 1
+    for k in range(2, 5):  # ҳар 1 дақиқада яна келади
+        clk.t += 61; app.tick(); assert len(sent(tg)) == k, k
+    clk.t = ts(2026, 11, 5, 21, 59)
+    for _ in range(4):  # 22:00 дан кейин (тинч соат) тўхтайди
+        clk.t += 61; app.tick()
+    n = len(sent(tg)); clk.t += 600; app.tick(); assert len(sent(tg)) == n
+    oid = db.execute("select id from occ").fetchone()[0]
+    app.on_callback(cb(1, f"dn:{oid}", 1)); clk.t += 61; app.tick(); assert len(sent(tg)) == n  # «Бажарилди» — тўхтайди

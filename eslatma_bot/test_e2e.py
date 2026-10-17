@@ -407,3 +407,30 @@ def test_user_deletes_wizard_message_manually_wizard_recovers():
     w.fake.chats[1]["msgs"][mid]["deleted"] = True                # одам хабарни ўзи ўчирди
     w.fake.say(1, "Tiklanadi"); w.run(tolerate=("not found",)); assert "Qachon eslatay" in w.last(1)
     w.close()
+
+
+def test_feedback_reaches_admin_anonymously_with_daily_limit():
+    w = World()
+    w.app.admin_chat = 999
+    w.say(7, "/start"); w.click(7, "🇺🇿 UZB")
+    w.menu(7, UZ["m_fb"])
+    assert "Asoschiga" in w.last(7)
+    w.say(7, "Menyu juda kichik <b>xato</b>")
+    assert w.last(7) == UZ["fb_ok"]
+    got = [x for x in w.fake.visible(999) if x[1] == "bot"]
+    assert got and "Menyu juda kichik" in got[-1][2] and "7" not in got[-1][2].replace("#1", "")
+    for i in range(6):
+        w.menu(7, UZ["m_fb"]); w.say(7, f"yana {i}")
+    assert w.last(7) == UZ["fb_limit"]
+    assert len(L.unsent_feedback(w.db)) == 0
+    assert w.db.execute("select count(*) from feedback").fetchone()[0] == L.FEEDBACK_PER_DAY
+
+
+def test_feedback_without_admin_is_kept_and_sent_later():
+    w = World()
+    w.say(7, "/start"); w.click(7, "🇺🇿 UZB")
+    w.menu(7, UZ["m_fb"]); w.say(7, "salom")
+    assert len(L.unsent_feedback(w.db)) == 1
+    w.app.admin_chat = 999
+    w.at(w.t + 60)
+    assert len(L.unsent_feedback(w.db)) == 0
