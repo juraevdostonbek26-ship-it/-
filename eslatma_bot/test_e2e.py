@@ -22,10 +22,11 @@ class World:
         self.app = bot.App(self.db, bot.Tg("TOKEN", self.fake.url), lambda: self.t)
         self.offset = 0
 
-    def run(self):
+    def run(self, tolerate=()):
         self.offset = bot.poll(self.app, self.db, self.offset, timeout=0)
         assert not self.app.errors, self.app.errors
-        assert not self.fake.errors, self.fake.errors
+        bad = [x for x in self.fake.errors if not any(t in x[1] for t in tolerate)]
+        assert not bad, bad
 
     def say(self, uid, text):
         self.fake.say(uid, text); self.run()
@@ -143,7 +144,8 @@ def test_weekly_daily_end_of_month():
 def test_cancel_stale_and_garbage_input():
     w = World(); onboard(w)
     w.menu(1, UZ["m_add"]); w.say(1, "x"); w.click(1, UZ["cancel"]); assert "Asosiy menyu" in w.last(1) and "go:add" in str(w.fake.buttons(1))
-    w.say(1, "ixtiyoriy matn"); assert "menyudan" in w.last(1) and len(w.screen(1)) == 1
+    w.say(1, "ixtiyoriy matn"); assert "Qachon eslatay" in w.last(1) and len(w.screen(1)) == 1  # ёзилган матн — янги эслатма номи
+    w.click(1, UZ["cancel"]); w.say(1, "/nomalum"); assert "menyudan" in w.last(1)
     w.menu(1, UZ["m_add"]); w.say(1, "<b>&\"'</b> " + "я" * 200); w.click(1, UZ["t_day"])
     old = w.fake.buttons(1)[0]
     w.menu(1, UZ["m_add"])  # янги оқим бошланади, эскиси тугмалари ўчган
@@ -193,8 +195,8 @@ def test_fuzz_no_errors_no_leaks_chat_stays_small():
                     w.fake.say(u, rnd.choice(junk) if rnd.random() < 0.6 else f"SECRET_{u}_" + str(rnd.randint(1, 99)))
                 elif act < 0.9:
                     w.t += rnd.choice([60, 900, 3600, 4 * 3600, 86400, 3 * 86400])
-                elif act < 0.95 and w.fake.chats[u]["msgs"]:
-                    w.fake.press(u, rnd.choice(list(w.fake.chats[u]["msgs"])), rnd.choice(["dn:1", "sz:1:3", "ls:1", "rmy:2", "cd:2026-02-30", "cal:abc", "tm:99:99", "x", "", "lg:xx", "tz:99", "fr:zzz", "dy:99", "wd:-1"]))
+                elif act < 0.95 and w.fake.visible(u):
+                    w.fake.press(u, rnd.choice(w.fake.visible(u))[0], rnd.choice(["em:1", "ed:1:when", "ed:2:title", "sk:1", "dg:9", "dg:x", "ed:99:amount", "ed:1:zzz", "sk:abc","dn:1", "sz:1:3", "ls:1", "rmy:2", "cd:2026-02-30", "cal:abc", "tm:99:99", "x", "", "lg:xx", "tz:99", "fr:zzz", "dy:99", "wd:-1"]))
                 w.run()
             except AssertionError as e:
                 raise AssertionError(f"seed={seed} step={step}: {e}")
@@ -284,4 +286,124 @@ def test_time_custom_back_and_cancel_to_home():
     w = World(); onboard(w); w.menu(1, UZ["m_add"]); w.say(1, "T"); w.click(1, UZ["t_day"]); w.click(1, UZ["time_other"])
     assert "8:30" in w.last(1); w.click(1, UZ["back_step"]); assert "Qaysi soatlarda" in w.last(1)
     w.click(1, UZ["cancel"]); assert "Asosiy menyu" in w.last(1) and L.get_conv(w.db, 1)[0] is None
+    w.close()
+
+
+def make_one(w, uid=1, title="Ijara", day=5, times=("09:00",), lead="0"):
+    w.menu(uid, UZ["m_add"]); w.say(uid, title); w.click(uid, UZ["t_month"]); w.click(uid, str(day))
+    for t in times:
+        w.click(uid, t)
+    w.click(uid, UZ["time_done"] + f" ({len(times)})"); w.click(uid, {"0": UZ["l0"], "1": UZ["l1"], "3": UZ["l3"]}[lead]); w.click(uid, UZ["skip"])
+    return w.db.execute("select max(id) from reminders where user_id=?", (uid,)).fetchone()[0]
+
+
+def test_edit_every_field():
+    w = World(); onboard(w); rid = make_one(w)
+    get = lambda: dict(w.db.execute("select * from reminders where id=?", (rid,)).fetchone())
+    open_edit = lambda: (w.click(1, UZ["m_list"]) if False else None)
+    w.menu(1, UZ["m_list"]); w.click(1, "🔔 Ijara"); w.click(1, UZ["b_edit"]); assert "Nimani o'zgartiramiz" in w.last(1) and "Ijara" in w.last(1)
+    w.click(1, UZ["e_title"]); assert "Yangi nomini" in w.last(1); w.say(1, "Ofis ijarasi")
+    assert "Yangilandi" in w.last(1) and get()["title"] == "Ofis ijarasi" and len(w.screen(1)) == 1
+    w.click(1, UZ["b_edit"]); w.click(1, UZ["e_times"]); assert "09:00" in w.last(1) and "✅ 09:00" in str(w.fake.buttons(1))     # эски қийматлар олдиндан белгиланган
+    w.click(1, "✅ 09:00"); w.click(1, "14:00"); w.click(1, "16:00"); w.click(1, UZ["time_done"] + " (2)")
+    assert get()["times"] == "14:00,16:00"
+    w.click(1, UZ["b_edit"]); w.click(1, UZ["e_lead"]); w.click(1, UZ["l7"]); assert get()["lead_days"] == 7
+    w.click(1, UZ["b_edit"]); w.click(1, UZ["e_amount"]); w.say(1, "3 000 000"); assert get()["amount"] == "3 000 000"
+    w.click(1, UZ["b_edit"]); w.click(1, UZ["e_when"]); w.click(1, UZ["t_week"]); w.click(1, "Ju")
+    r = get(); assert (r["freq"], r["day"], r["lead_days"], r["times"], r["title"]) == ("weekly", 4, 7, "14:00,16:00", "Ofis ijarasi")
+    assert "har juma" in w.last(1) and len(w.screen(1)) == 1
+    w.click(1, UZ["b_edit"]); w.click(1, UZ["e_when"]); w.click(1, UZ["back_step"]); assert "Nimani o'zgartiramiz" in w.last(1)   # таҳрирда «Орқага» — таҳрир менюсига
+    w.click(1, UZ["e_title"]); w.click(1, UZ["cancel"]); assert "har juma" in w.last(1)                                         # «Бекор» — эслатма экрани
+    w.close()
+
+
+def test_edit_schedule_regenerates_but_title_edit_keeps_nagging():
+    w = World(); onboard(w); rid = make_one(w, day=5, times=("09:00",))
+    w.at(ts(2026, 11, 5, 9, 1)); assert len([x for x in w.bot_msgs(1) if "🚨" in x[2]]) == 1
+    # ном ўзгартирилса — кутилаётган эслатма тегилмайди (бир хил ID, янги карточка юборилмайди)
+    occ_before = w.db.execute("select id, sent_count from occ").fetchone()[:]
+    w.menu(1, UZ["m_list"]); w.click(1, "🔔 Ijara"); w.click(1, UZ["b_edit"]); w.click(1, UZ["e_title"]); w.say(1, "Yangi nom")
+    assert w.db.execute("select count(*) from occ where status='pending'").fetchone()[0] == 1
+    assert w.db.execute("select id, sent_count from occ").fetchone()[:] == occ_before
+    assert len([x for x in w.bot_msgs(1) if "🚨" in x[2]]) == 1
+    w.at(ts(2026, 11, 5, 12, 5)); assert any("Yangi nom" in x[2] and "takroriy" in x[2] for x in w.bot_msgs(1))     # такрор давом этди ва янги ном билан
+    # жадвал ўзгартирилса — қайта ҳисобланади (кутилаётган ўчади)
+    w.click(1, UZ["b_edit"]) if False else None
+    w.menu(1, UZ["m_list"]); w.click(1, "🔔 Yangi nom"); w.click(1, UZ["b_edit"]); w.click(1, UZ["e_times"]); w.click(1, "✅ 09:00"); w.click(1, "20:00"); w.click(1, UZ["time_done"] + " (1)")
+    assert w.db.execute("select count(*) from occ where status='pending'").fetchone()[0] == 1
+    assert w.db.execute("select next_ts from occ").fetchone()[0] == ts(2026, 11, 5, 20, 0)
+    w.close()
+
+
+def test_edit_and_skip_foreign_reminders_are_rejected():
+    w = World(); onboard(w, 1); onboard(w, 2); rid = make_one(w, 1, "SIR_BIR"); make_one(w, 2, "SIR_IKKI")
+    mid2 = w.fake.buttons(2)[0][0] if w.fake.buttons(2) else w.bot_msgs(2)[-1][0]
+    before = dict(w.db.execute("select * from reminders where id=?", (rid,)).fetchone())
+    for data in (f"em:{rid}", f"ed:{rid}:title", f"ed:{rid}:when", f"sk:{rid}", f"pz:{rid}", f"rm:{rid}"):
+        w.fake.press(2, mid2, data); w.run()
+    assert L.get_conv(w.db, 2)[0] is None or "SIR_BIR" not in str(L.get_conv(w.db, 2)[1])
+    assert dict(w.db.execute("select * from reminders where id=?", (rid,)).fetchone()) == before
+    assert w.db.execute("select count(*) from occ where reminder_id=? and status='skipped'", (rid,)).fetchone()[0] == 0
+    assert "SIR_BIR" not in str(w.fake.visible(2))
+    w.close()
+
+
+def test_skip_next_occurrence_monthly_and_daily():
+    w = World(); onboard(w); rid = make_one(w, day=5)
+    w.menu(1, UZ["m_list"]); w.click(1, "🔔 Ijara"); w.click(1, UZ["b_skip"]); assert "05.11" in w.fake.toasts[-1]
+    w.at(ts(2026, 11, 5, 9, 1)); assert not [x for x in w.bot_msgs(1) if "🚨" in x[2]]       # ноябрь ўтказилди
+    w.at(ts(2026, 12, 5, 9, 1)); assert len([x for x in w.bot_msgs(1) if "🚨" in x[2]]) == 1  # декабрь ишлайди
+    w.click(1, UZ["b_done"])
+    w.menu(1, UZ["m_list"]); w.click(1, "🔔 Ijara"); w.click(1, UZ["b_skip"]); assert "05.01" in w.fake.toasts[-1]   # ёки кейинги
+    w.close()
+
+
+def test_daily_digest_once_a_day_replaced_and_empty_skipped():
+    w = World(); onboard(w); make_one(w, day=2, times=("12:00",)); make_one(w, title="Soliq", day=4, times=("09:00",))
+    w.at(ts(2026, 11, 2, 12, 5))
+    dg = lambda: [x for x in w.bot_msgs(1) if "Bugungi xulosa" in x[2]]
+    w.menu(1, UZ["m_set"]); w.click(1, "🗞 08:00"); assert "08:00" in w.last(1) or dg()
+    assert len(dg()) == 1 and "Bugun" in dg()[0][2] and "Ijara" in dg()[0][2] and "Yaqin 3 kun" in dg()[0][2] and "Soliq" in dg()[0][2]   # yoqilganda namuna darrov
+    d0 = dg()[0][0]
+    w.at(ts(2026, 11, 2, 15, 0)); assert len(dg()) == 1 and dg()[0][0] == d0                  # кунига 1 марта
+    w.at(ts(2026, 11, 3, 7, 0)); assert dg()[0][0] == d0
+    w.at(ts(2026, 11, 3, 8, 5)); assert len(dg()) == 1 and dg()[0][0] != d0 and "Muddati o'tgan" in dg()[0][2]   # эскиси ўрнига янгиси
+    w.menu(1, UZ["m_set"]); w.click(1, "🗞 O'chiq"); assert "o'chiq" in w.last(1)
+    w.close()
+
+
+def test_unanswered_repeats_keep_exactly_one_card():
+    w = World(); onboard(w); make_one(w, day=5, times=("09:00",))
+    cards = lambda: [x for x in w.bot_msgs(1) if "🚨" in x[2]]
+    for h, mi in ((9, 1), (12, 5), (15, 10), (18, 20), (21, 30)):
+        w.at(ts(2026, 11, 5, h, mi)); assert len(cards()) == 1, (h, len(cards()))
+    assert "takroriy" in cards()[0][2]
+    w.at(ts(2026, 11, 6, 9, 5)); assert len(cards()) == 1 and "1 kun" in cards()[0][2]       # эртасига ҳам битта
+    w.close()
+
+
+def test_draft_expires_after_30_minutes_and_dead_buttons_go_home():
+    w = World(); onboard(w); w.menu(1, UZ["m_add"]); w.say(1, "Eskiradi")
+    w.at(w.t + 31 * 60)
+    w.click(1, UZ["t_month"])                                   # эскирган қоралама тугмаси
+    assert "Asosiy menyu" in w.last(1) and L.get_conv(w.db, 1)[0] is None
+    w.say(1, "15"); assert "Qachon eslatay" in w.last(1)           # «15» янги эслатма номи бўлиб қолади, эски қоралама эмас
+    w.close()
+
+
+def test_snooze_presets_15_and_30_minutes():
+    w = World(); onboard(w); make_one(w, day=5)
+    w.at(ts(2026, 11, 5, 9, 1)); w.click(1, UZ["b_later"])
+    assert [b[1] for b in w.fake.buttons(1) if b[2].startswith("sz:")][:3] == ["15 daq", "30 daq", "1 soat"]
+    w.click(1, "15 daq"); assert "15 daqiqadan" in w.fake.toasts[-1]
+    oid = w.db.execute("select id from occ").fetchone()[0]
+    assert abs(w.db.execute("select next_ts from occ").fetchone()[0] - (ts(2026, 11, 5, 9, 1) + 900)) < 1
+    w.at(ts(2026, 11, 5, 9, 17)); assert [x for x in w.bot_msgs(1) if "🚨" in x[2]]
+    w.close()
+
+
+def test_user_deletes_wizard_message_manually_wizard_recovers():
+    w = World(); onboard(w); w.menu(1, UZ["m_add"]); mid = L.get_conv(w.db, 1)[1]["mid"]
+    w.fake.chats[1]["msgs"][mid]["deleted"] = True                # одам хабарни ўзи ўчирди
+    w.fake.say(1, "Tiklanadi"); w.run(tolerate=("not found",)); assert "Qachon eslatay" in w.last(1)
     w.close()

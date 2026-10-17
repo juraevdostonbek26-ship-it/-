@@ -257,3 +257,21 @@ def test_old_database_is_migrated():
     assert L.times_of(r) == ["10:00"] and db.execute("select lang from users").fetchone()[0] is None
     tg = FakeTg(); app = bot.App(db, tg, Clock())
     app.on_callback(cb(1, "lg:uz", 1)); app.on_callback(cb(1, f"ls:{r['id']}", 7)); assert "Eski" in tg.texts()[-1]
+
+
+def test_logic_layer_rejects_foreign_ids_by_itself():
+    """Бот қатламидан мустақил: мантиқ функциялари бегона ID да ҳеч нарсани ўзгартирмайди."""
+    app, db, tg, clk = make(); start(app, 1); start(app, 2)
+    r1 = add_monthly(app, db, 1, "Birinchi", 5)
+    clk.t = ts(2026, 11, 5, 9, 1); app.tick()
+    oid = db.execute("select id from occ").fetchone()[0]
+    snap = lambda: ([tuple(r) for r in db.execute("select * from reminders")], [tuple(r) for r in db.execute("select * from occ")])
+    before = snap()
+    assert L.skip_next(db, 2, r1, clk.t) is None
+    assert L.update_reminder(db, 2, r1, {"title": "X", "freq": "daily", "times": ["10:00"]}, clk.t) is False
+    assert L.snooze(db, 2, oid, clk.t, hours=1) is None
+    assert L.mark_done(db, 2, oid) is False
+    assert L.own_reminder(db, 2, r1) is None and L.own_occ(db, 2, oid) is None
+    assert snap() == before
+    # ўзиники ишлайди
+    assert L.skip_next(db, 1, r1, clk.t) is not None

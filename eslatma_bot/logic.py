@@ -6,7 +6,7 @@ MAX_REMINDERS = 100
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(user_id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL,
   tz REAL NOT NULL DEFAULT 5, repeat_h REAL NOT NULL DEFAULT 3, quiet_start INTEGER NOT NULL DEFAULT 22,
-  quiet_end INTEGER NOT NULL DEFAULT 7, lang TEXT, panel_mid INTEGER, anchor_mid INTEGER, anchor_lang TEXT);
+  quiet_end INTEGER NOT NULL DEFAULT 7, lang TEXT, panel_mid INTEGER, anchor_mid INTEGER, anchor_lang TEXT, digest_hour INTEGER, digest_date TEXT, digest_mid INTEGER);
 CREATE TABLE IF NOT EXISTS reminders(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
   title TEXT NOT NULL, freq TEXT NOT NULL, day INTEGER, date TEXT, hhmm TEXT NOT NULL DEFAULT '09:00',
   lead_days INTEGER NOT NULL DEFAULT 0, amount TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1,
@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS reminders(id INTEGER PRIMARY KEY AUTOINCREMENT, user_
 CREATE INDEX IF NOT EXISTS ix_rem_user ON reminders(user_id);
 CREATE TABLE IF NOT EXISTS occ(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
   reminder_id INTEGER NOT NULL, due TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
-  next_ts REAL NOT NULL, sent_count INTEGER NOT NULL DEFAULT 0, UNIQUE(reminder_id, due));
-CREATE TABLE IF NOT EXISTS conv(user_id INTEGER PRIMARY KEY, step TEXT NOT NULL, data TEXT NOT NULL);
+  next_ts REAL NOT NULL, sent_count INTEGER NOT NULL DEFAULT 0, card_mid INTEGER, UNIQUE(reminder_id, due));
+CREATE TABLE IF NOT EXISTS conv(user_id INTEGER PRIMARY KEY, step TEXT NOT NULL, data TEXT NOT NULL, ts REAL NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
 """
 USER_TABLES = ("occ", "reminders", "conv", "users")
@@ -27,7 +27,7 @@ def connect(path):
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     cols = lambda t: {r[1] for r in conn.execute(f"PRAGMA table_info({t})")}
-    for t, c, ddl in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0")):
+    for t, c, ddl in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("users", "digest_hour", "INTEGER"), ("users", "digest_date", "TEXT"), ("users", "digest_mid", "INTEGER"), ("conv", "ts", "REAL NOT NULL DEFAULT 0"), ("occ", "card_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0")):
         if c not in cols(t):  # эски базани йўқотмасдан янгилаш
             conn.execute(f"ALTER TABLE {t} ADD COLUMN {c} {ddl}")
     conn.commit()
@@ -67,7 +67,7 @@ def get_user(conn, uid):
 
 def set_user(conn, uid, **kw):
     for k in kw:
-        assert k in ("lang", "tz", "repeat_h", "panel_mid", "anchor_mid", "anchor_lang")
+        assert k in ("lang", "tz", "repeat_h", "panel_mid", "anchor_mid", "anchor_lang", "digest_hour", "digest_date", "digest_mid")
     conn.execute("UPDATE users SET " + ",".join(f"{k}=?" for k in kw) + " WHERE user_id=?", (*kw.values(), uid))
     conn.commit()
 
@@ -79,13 +79,19 @@ def delete_user_data(conn, uid):
 
 
 # ---------- суҳбат ҳолати ----------
-def get_conv(conn, uid):
-    r = conn.execute("SELECT step, data FROM conv WHERE user_id=?", (uid,)).fetchone()
-    return (r["step"], json.loads(r["data"])) if r else (None, {})
+def get_conv(conn, uid, now=None, ttl=1800):
+    """Ярим қолган оқим 30 дақиқадан кейин эскиради (қоралама ўчади)."""
+    r = conn.execute("SELECT step, data, ts FROM conv WHERE user_id=?", (uid,)).fetchone()
+    if not r:
+        return None, {}
+    if now is not None and now - r["ts"] > ttl:
+        clear_conv(conn, uid)
+        return None, {}
+    return r["step"], json.loads(r["data"])
 
 
-def set_conv(conn, uid, step, data):
-    conn.execute("INSERT OR REPLACE INTO conv(user_id, step, data) VALUES(?,?,?)", (uid, step, json.dumps(data, ensure_ascii=False)))
+def set_conv(conn, uid, step, data, now=None):
+    conn.execute("INSERT OR REPLACE INTO conv(user_id, step, data, ts) VALUES(?,?,?,?)", (uid, step, json.dumps(data, ensure_ascii=False), now if now is not None else time.time()))
     conn.commit()
 
 
@@ -227,7 +233,7 @@ def next_after_send(x, times, now):
 def pop_due(conn, now):
     """Ҳозир юбориладиган хабарлар. Навбатдаги вақтни ЮБОРИШДАН ОЛДИН ёзади (иккилаб кетмасин)."""
     rows = conn.execute(
-        "SELECT o.id oid, o.user_id, o.due, o.sent_count, r.title, r.amount, r.hhmm, r.times, r.freq, u.chat_id, u.tz, u.repeat_h, u.quiet_start, u.quiet_end, u.lang "
+        "SELECT o.id oid, o.user_id, o.due, o.sent_count, o.card_mid, r.title, r.amount, r.hhmm, r.times, r.freq, u.chat_id, u.tz, u.repeat_h, u.quiet_start, u.quiet_end, u.lang "
         "FROM occ o JOIN reminders r ON r.id=o.reminder_id JOIN users u ON u.user_id=o.user_id "
         "WHERE o.status='pending' AND o.next_ts<=? AND r.active=1", (now,)).fetchall()
     out = []
@@ -257,3 +263,70 @@ def snooze(conn, uid, oid, now, hours=None, tomorrow=False):
     conn.execute("UPDATE occ SET next_ts=? WHERE id=?", (ts, oid))
     conn.commit()
     return ts
+
+
+def update_reminder(conn, uid, rid, d, now):
+    """Таҳрирлаш. Фақат жадвал ўзгарса кутилаётган эслатмалар қайта ҳисобланади (ном/сумма ўзгарса — тегилмайди)."""
+    r = own_reminder(conn, uid, rid)
+    if not r:
+        return False
+    times = sorted(set(d.get("times") or times_of(r)))
+    new = (d["freq"], d.get("day"), d.get("date"), d.get("lead", 0), ",".join(times))
+    changed = (r["freq"], r["day"], r["date"], r["lead_days"], ",".join(times_of(r))) != new
+    conn.execute("UPDATE reminders SET title=?, freq=?, day=?, date=?, hhmm=?, lead_days=?, amount=?, times=?" + (", created_ts=?" if changed else "") + " WHERE id=? AND user_id=?",
+                 (clean(d["title"], 80), new[0], new[1], new[2], times[0], new[3], clean(d.get("amount", ""), 40), new[4], *((now,) if changed else ()), rid, uid))
+    if changed:
+        conn.execute("DELETE FROM occ WHERE reminder_id=? AND user_id=? AND status='pending'", (rid, uid))
+    conn.commit()
+    return True
+
+
+def skip_next(conn, uid, rid, now):
+    """Энг яқин келаси муддатни ўтказиб юборади (масалан, шу ой аренда йўқ). Сана қайтаради."""
+    r = own_reminder(conn, uid, rid)
+    if not r or r["freq"] == "once":
+        return None
+    u = get_user(conn, uid)
+    today = local_dt(u, now).date()
+    for due in sorted(x for x in dues_near(r, today) if x >= today):
+        row = conn.execute("SELECT status FROM occ WHERE reminder_id=? AND due=?", (rid, due.isoformat())).fetchone()
+        if row and row["status"] in ("done", "skipped"):
+            continue
+        if row:
+            conn.execute("UPDATE occ SET status='skipped' WHERE reminder_id=? AND due=?", (rid, due.isoformat()))
+        else:
+            conn.execute("INSERT INTO occ(user_id,reminder_id,due,status,next_ts) VALUES(?,?,?,'skipped',?)", (uid, rid, due.isoformat(), now))
+        conn.commit()
+        return due
+    return None
+
+
+def overdue_items(conn, uid, now):
+    u = get_user(conn, uid)
+    today = local_dt(u, now).date().isoformat()
+    return conn.execute("SELECT o.due, r.title, r.amount FROM occ o JOIN reminders r ON r.id=o.reminder_id WHERE o.user_id=? AND o.status='pending' AND r.active=1 AND o.due<? ORDER BY o.due",
+                        (uid, today)).fetchall()
+
+
+def digest_items(conn, uid, now):
+    """Эрталабки хулоса: муддати ўтган, бугунги ва яқин 3 кундаги. [(сана, ном, сумма, тоифа)]"""
+    u = get_user(conn, uid)
+    today = local_dt(u, now).date()
+    out, seen = [], set()
+    for o in conn.execute("SELECT o.reminder_id rid, o.due, r.title, r.amount FROM occ o JOIN reminders r ON r.id=o.reminder_id WHERE o.user_id=? AND o.status='pending' AND r.active=1 AND o.due<=? ORDER BY o.due",
+                          (uid, today.isoformat())).fetchall():
+        d = date.fromisoformat(o["due"])
+        out.append((d, o["title"], o["amount"], "over" if d < today else "today"))
+        seen.add((o["rid"], o["due"]))
+    for r in conn.execute("SELECT * FROM reminders WHERE user_id=? AND active=1", (uid,)).fetchall():
+        for d in dues_near(r, today):
+            if today < d <= today + timedelta(days=3) and (r["id"], d.isoformat()) not in seen:
+                st = conn.execute("SELECT status FROM occ WHERE reminder_id=? AND due=?", (r["id"], d.isoformat())).fetchone()
+                if not (st and st["status"] in ("done", "skipped")):
+                    out.append((d, r["title"], r["amount"], "soon"))
+    return sorted(out, key=lambda x: (x[0], x[1]))
+
+
+def set_card(conn, oid, mid):
+    conn.execute("UPDATE occ SET card_mid=? WHERE id=?", (mid, oid))
+    conn.commit()
