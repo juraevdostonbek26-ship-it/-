@@ -1,9 +1,10 @@
-"""Telegram бот: кўп фойдаланувчили эслатма котиби. Фақат стандарт кутубхона."""
-import html, json, os, sys, time, traceback, urllib.request
+"""Telegram бот: кўп фойдаланувчили эслатма котиби (UZ/RU). Фақат стандарт кутубхона."""
+import calendar, html, json, os, sys, time, traceback, urllib.error, urllib.request
 from collections import defaultdict, deque
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 
 import logic as L
+from texts import LANG_NAME, TXT, tr
 
 for _s in (sys.stdout, sys.stderr):  # Windows ойнаси ўзбекча ҳарфда ботни ўчирмасин
     try:
@@ -12,18 +13,20 @@ for _s in (sys.stdout, sys.stderr):  # Windows ойнаси ўзбекча ҳа�
         pass
 
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db"))
-WD = ["Душанба", "Сешанба", "Чоршанба", "Пайшанба", "Жума", "Шанба", "Якшанба"]
-FREQ = {"monthly": "🔁 Ҳар ой", "weekly": "📆 Ҳар ҳафта", "once": "1️⃣ Бир марта"}
-TEMPLATES = {"ar": "🏠 Аренда", "oy": "👥 Ходимлар ойлиги", "so": "🧾 Солиқ", "wf": "📶 Интернет / WiFi", "cr": "💻 CRM", "ko": "💡 Коммунал"}
-MENU = {"➕ Янги эслатма": "add", "📋 Эслатмаларим": "list", "📅 Яқин кунлар": "soon", "⚙️ Созламалар": "set"}
-E = html.escape
+E = lambda s: html.escape(s, quote=False)  # апостроф ўзгармасин
+HOURS = [f"{h:02d}:00" for h in range(7, 23)]
+MENU = {tr(lg, k): c for lg in TXT for k, c in (("m_add", "add"), ("m_list", "list"), ("m_soon", "soon"), ("m_set", "set"))}
+WIZ_KEYS = {"fr", "dy", "wd", "cal", "cd", "tm", "tmd", "tmc", "ld", "am", "cx"}
+TEXT_STEPS = {"title", "amount", "time_custom", "snooze_custom"}
 
 
 def kb(rows):
     return {"inline_keyboard": [[{"text": t, "callback_data": d} for t, d in row] for row in rows]}
 
 
-MAIN_KB = {"keyboard": [[{"text": "➕ Янги эслатма"}, {"text": "📋 Эслатмаларим"}], [{"text": "📅 Яқин кунлар"}, {"text": "⚙️ Созламалар"}]], "resize_keyboard": True, "is_persistent": True}
+def main_kb(lg):
+    r = lambda *k: [{"text": tr(lg, x)} for x in k]
+    return {"keyboard": [r("m_add", "m_list"), r("m_soon", "m_set")], "resize_keyboard": True, "is_persistent": True}
 
 
 class Tg:
@@ -46,55 +49,122 @@ class Tg:
         if markup:
             p["reply_markup"] = markup
         try:
-            return self.call("editMessageText", **p)
+            self.call("editMessageText", **p)
+            return True
+        except urllib.error.HTTPError as e:
+            return "not modified" in e.read().decode("utf-8", "replace")
         except Exception:
-            return None
+            return False
+
+    def delete(self, chat, mid):
+        try:
+            self.call("deleteMessage", chat_id=chat, message_id=mid)
+        except Exception:
+            pass
 
 
 # ---------- матн ва тугмалар ----------
-def card(title, due, days_left, amount="", sent=0):
-    if days_left < 0:
-        state = f"🔴 Муддати <b>{-days_left} кун</b> ўтган"
-    elif days_left == 0:
-        state = "🟠 Муддат: <b>бугун</b>"
-    else:
-        state = f"🟡 Муддатга <b>{days_left} кун</b> қолди"
-    s = f"🔔 <b>{E(title)}</b>\n{state}\n📅 {due[8:]}.{due[5:7]}.{due[:4]}"
-    if amount:
-        s += f"\n💰 {E(amount)}"
-    return s + ("\n↻ такрорий эслатма" if sent else "")
+def fmt_date(iso):
+    return f"{iso[8:]}.{iso[5:7]}.{iso[:4]}"
 
 
-def action_kb(oid):
-    return kb([[("⏰ Кейинрок", f"sn:{oid}"), ("✅ Бажарилди", f"dn:{oid}")]])
+def when_of(d, lg):
+    f = d["freq"]
+    if f == "monthly":
+        return tr(lg, "w_month_end") if d["day"] == 31 else tr(lg, "w_month", d=d["day"])
+    if f == "weekly":
+        return tr(lg, "w_week", wd=TXT[lg]["wd"][d["day"] % 7])
+    if f == "once":
+        return fmt_date(d["date"])
+    return tr(lg, "w_day")
 
 
-def describe(r):
-    when = {"monthly": f"ҳар ойнинг {r['day']}-санаси", "weekly": f"ҳар {WD[r['day']].lower()}", "once": f"{r['date']}"}[r["freq"]]
-    extra = f", {r['lead_days']} кун олдин" if r["lead_days"] else ""
-    return f"{E(r['title'])} — {when}, {r['hhmm']}{extra}" + (f" · {E(r['amount'])}" if r["amount"] else "") + ("" if r["active"] else " ⏸")
+def lead_of(n, lg):
+    return tr(lg, "lead_x", n=n) if n else ""
 
 
-def ask(step, d):
-    """(матн, тугмалар) — ҳар қадам учун савол."""
+def describe(r, lg):
+    s = f"<b>{E(r['title'])}</b>\n🗓 {when_of(r, lg)}{lead_of(r['lead_days'], lg)}\n⏰ {', '.join(L.times_of(r))}"
+    if r["amount"]:
+        s += f"\n💰 {E(r['amount'])}"
+    return s + ("" if r["active"] else "  ⏸")
+
+
+def card(x):
+    lg = x.get("lang") or "uz"
+    n = x["days_left"]
+    state = tr(lg, "c_over", n=-n) if n < 0 else tr(lg, "c_today") if n == 0 else tr(lg, "c_left", n=n)
+    s = f"🚨 <b>{E(x['title'])}</b>\n{state}\n📅 {fmt_date(x['due'])}"
+    if x["amount"]:
+        s += f"\n💰 {E(x['amount'])}"
+    return s + (f"\n{tr(lg, 'c_rep')}" if x["sent_count"] else "")
+
+
+def action_kb(oid, lg):
+    return kb([[(tr(lg, "b_later"), f"sn:{oid}"), (tr(lg, "b_done"), f"dn:{oid}")]])
+
+
+def snooze_kb(oid, lg):
+    h = lambda v: (tr(lg, "hours", h=v), f"sz:{oid}:{v}")
+    return kb([[h("1"), h("2"), h("3")], [h("6"), h("12"), (tr(lg, "tomorrow"), f"sz:{oid}:t")], [(tr(lg, "custom"), f"sz:{oid}:c")]])
+
+
+def cancel_row(lg):
+    return [(tr(lg, "cancel"), "cx")]
+
+
+def cal_markup(lg, ym, today):
+    y, m = ym
+    ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+    py, pm = (y - 1, 12) if m == 1 else (y, m - 1)
+    can_prev = (y, m) > (today.year, today.month)
+    can_next = (y, m) < (today.year + 2, today.month)
+    rows = [[("◀" if can_prev else " ", f"cal:{py}-{pm}" if can_prev else "x"), (f"{TXT[lg]['months'][m - 1]} {y}", "x"), ("▶" if can_next else " ", f"cal:{ny}-{nm}" if can_next else "x")],
+            [(w, "x") for w in TXT[lg]["wd_s"]]]
+    for week in calendar.monthcalendar(y, m):
+        row = []
+        for n in week:
+            if n == 0:
+                row.append((" ", "x"))
+            elif date(y, m, n) < today:
+                row.append(("·", "x"))
+            else:
+                row.append((("🔸" if date(y, m, n) == today else "") + str(n), f"cd:{y:04d}-{m:02d}-{n:02d}"))
+        rows.append(row)
+    return rows + [cancel_row(lg)]
+
+
+def render(step, d, lg, today, warn=""):
+    title = E(d.get("title", ""))
     if step == "title":
-        return "➕ <b>Янги эслатма</b>\nНимани эслатай? Шаблонни танланг ёки номини ёзинг:", kb([[(TEMPLATES[a], f"tpl:{a}"), (TEMPLATES[b], f"tpl:{b}")] for a, b in (("ar", "oy"), ("so", "wf"), ("cr", "ko"))])
+        return tr(lg, "q_title"), kb([cancel_row(lg)])
     if step == "freq":
-        return f"<b>{E(d['title'])}</b>\nҚанчалик тез-тез?", kb([[(v, f"fr:{k}")] for k, v in FREQ.items()])
+        return tr(lg, "q_type", title=title), kb([[(tr(lg, k), f"fr:{v}")] for k, v in (("t_once", "once"), ("t_month", "monthly"), ("t_week", "weekly"), ("t_day", "daily"))] + [cancel_row(lg)])
     if step == "day":
-        if d["freq"] == "weekly":
-            return "Ҳафтанинг қайси куни?", kb([[(WD[i], f"wd:{i}") for i in (0, 1, 2, 3)], [(WD[i], f"wd:{i}") for i in (4, 5, 6)]])
-        return "Ойнинг неча санаси?\nТугмани босинг ёки рақам ёзинг (1–31):", kb([[(str(n), f"dy:{n}") for n in (1, 5, 10, 15)], [(str(n), f"dy:{n}") for n in (20, 25, 30)], [("Ой охири", "dy:31")]])
+        rows = [[(str(n), f"dy:{n}") for n in range(s, s + 6)] for s in range(1, 31, 6)]
+        return tr(lg, "q_dom", title=title), kb(rows + [[(tr(lg, "month_end"), "dy:31")], cancel_row(lg)])
+    if step == "wd":
+        return tr(lg, "q_wd", title=title), kb([[(w, f"wd:{i}") for i, w in enumerate(TXT[lg]["wd_s"])], cancel_row(lg)])
     if step == "date":
-        return "Санани ёзинг: <code>05.11.2026</code>", None
+        y, m = d.get("cal") or [today.year, today.month]
+        return tr(lg, "q_date", title=title), kb(cal_markup(lg, (y, m), today))
     if step == "time":
-        return "Соат нечада эслатай?\nТугмани босинг ёки ёзинг (масалан 8:30):", kb([[(t, f"tm:{t}") for t in ("08:00", "09:00", "12:00")], [(t, f"tm:{t}") for t in ("15:00", "18:00")]])
+        sel = d.get("sel", [])
+        rows = [[((("✅ " if t in sel else "") + t), f"tm:{t}") for t in HOURS[i:i + 4]] for i in range(0, len(HOURS), 4)]
+        extra = [t for t in sel if t not in HOURS]
+        if extra:
+            rows.append([(f"✅ {t}", f"tm:{t}") for t in extra[:4]])
+        rows.append([(tr(lg, "time_other"), "tmc"), (tr(lg, "time_done") + (f" ({len(sel)})" if sel else ""), "tmd")])
+        text = tr(lg, "q_time", title=title, when=when_of(d, lg), sel=", ".join(sorted(sel)) or tr(lg, "none")) + warn
+        return text, kb(rows + [cancel_row(lg)])
+    if step == "time_custom":
+        return tr(lg, "q_time_custom") + warn, kb([cancel_row(lg)])
     if step == "lead":
-        return "Олдиндан огоҳлантирайми?", kb([[("Ўша куни", "ld:0"), ("1 кун олдин", "ld:1")], [("3 кун олдин", "ld:3"), ("7 кун олдин", "ld:7")]])
+        return tr(lg, "q_lead", title=title), kb([[(tr(lg, "l0"), "ld:0"), (tr(lg, "l1"), "ld:1")], [(tr(lg, "l3"), "ld:3"), (tr(lg, "l7"), "ld:7")], cancel_row(lg)])
     if step == "amount":
-        return "Сумма ёки изоҳ ёзинг (масалан <code>5 000 000</code>).\nКерак бўлмаса — ўтказиб юборинг:", kb([[("⏭ Ўтказиш", "am:skip")]])
+        return tr(lg, "q_amount"), kb([[(tr(lg, "skip"), "am:skip")], cancel_row(lg)])
     if step == "snooze_custom":
-        return "Неча соатдан кейин эслатай? Рақам ёзинг (масалан <code>2</code> ёки <code>0.5</code>):", None
+        return tr(lg, "later_custom_q") + warn, None
 
 
 def next_step(d):
@@ -102,18 +172,20 @@ def next_step(d):
         return "title"
     if "freq" not in d:
         return "freq"
-    if d["freq"] == "once" and "date" not in d:
-        return "date"
-    if d["freq"] != "once" and "day" not in d:
+    f = d["freq"]
+    if f == "monthly" and "day" not in d:
         return "day"
-    for k, s in (("hhmm", "time"), ("lead", "lead"), ("amount", "amount")):
-        if k not in d:
-            return s
+    if f == "weekly" and "day" not in d:
+        return "wd"
+    if f == "once" and "date" not in d:
+        return "date"
+    if "times" not in d:
+        return "time"
+    if f in ("monthly", "once") and "lead" not in d:
+        return "lead"
+    if "amount" not in d:
+        return "amount"
     return None
-
-
-def snooze_kb(oid):
-    return kb([[(f"{h} соат", f"sz:{oid}:{h}") for h in ("1", "2", "3")], [(f"{h} соат", f"sz:{oid}:{h}") for h in ("6", "12")] + [("🌅 Эртага", f"sz:{oid}:t")], [("✍️ Ўзим киритаман", f"sz:{oid}:c")]])
 
 
 # ---------- ишлов бериш ----------
@@ -127,22 +199,46 @@ class App:
         while q and t - q[0] > 10:
             q.popleft()
         q.append(t)
-        return len(q) > 20
+        return len(q) > 40
 
-    def step(self, uid, chat, d):
-        s = next_step(d)
-        if s is None:
-            rid = L.add_reminder(self.db, uid, d)
-            L.clear_conv(self.db, uid)
-            if rid is None:
-                return self.tg.send(chat, f"Лимит: {L.MAX_REMINDERS} та эслатмадан ортиқ бўлмайди. Керак бўлмаганини ўчиринг.", MAIN_KB)
-            L.sync(self.db, self.now())
-            r = L.own_reminder(self.db, uid, rid)
-            nd = L.next_due(r, L.local_dt(L.get_user(self.db, uid), self.now()).date())
-            return self.tg.send(chat, f"✅ <b>Сақланди</b>\n{describe(r)}" + (f"\nКейинги муддат: {nd:%d.%m.%Y}" if nd else ""), MAIN_KB)
-        L.set_conv(self.db, uid, s, d)
-        text, markup = ask(s, d)
-        self.tg.send(chat, text, markup)
+    def today(self, u):
+        return L.local_dt(u, self.now()).date()
+
+    def fmt_ts(self, u, ts):
+        return L.local_dt(u, ts).strftime("%d.%m %H:%M")
+
+    # --- битта хабарни таҳрирлаш (эски хабарлар қолиб кетмасин) ---
+    def put(self, chat, d, text, markup):
+        mid = d.get("mid")
+        if mid and self.tg.edit(chat, mid, text, markup):
+            return
+        r = self.tg.send(chat, text, markup)
+        d["mid"] = ((r or {}).get("result") or {}).get("message_id")
+
+    def wiz(self, uid, chat, d, step=None, warn=""):
+        u = L.get_user(self.db, uid)
+        lg = u["lang"] or "uz"
+        step = step or next_step(d)
+        if step is None:
+            return self.finish(uid, chat, d, u, lg)
+        text, markup = render(step, d, lg, self.today(u), warn)
+        self.put(chat, d, text, markup)
+        L.set_conv(self.db, uid, step, d)
+
+    def finish(self, uid, chat, d, u, lg):
+        L.clear_conv(self.db, uid)
+        rid = L.add_reminder(self.db, uid, d, self.now())
+        if rid is None:
+            return self.put(chat, d, tr(lg, "limit", n=L.MAX_REMINDERS), None)
+        L.sync(self.db, self.now())
+        r = L.own_reminder(self.db, uid, rid)
+        nf = L.next_fire(self.db, uid, r, self.now())
+        text = tr(lg, "saved", title=E(r["title"]), when=when_of(r, lg) + lead_of(r["lead_days"], lg), times=", ".join(L.times_of(r)),
+                  extra=(f"\n💰 {E(r['amount'])}" if r["amount"] else ""), next=self.fmt_ts(u, nf) if nf else tr(lg, "none"))
+        self.put(chat, d, text, kb([[(tr(lg, "add_more"), "addnew"), (tr(lg, "to_list"), "lst")]]))
+
+    def ask_lang(self, chat):
+        self.tg.send(chat, TXT["uz"]["lang_pick"], kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")]]))
 
     def on_message(self, m):
         if m["chat"]["type"] != "private" or "from" not in m:
@@ -151,176 +247,239 @@ class App:
         if self.limited(uid):
             return
         u = L.ensure_user(self.db, uid, chat)
-        cmd = text.split("@")[0].split()[0].lower() if text.startswith("/") else MENU.get(text, "")
-        cmd = cmd.lstrip("/")
+        if u["lang"] is None:
+            return self.ask_lang(chat)
+        lg = u["lang"]
+        cmd = text.split("@")[0].split()[0].lower().lstrip("/") if text.startswith("/") else MENU.get(text, "")
         if cmd == "start":
             L.clear_conv(self.db, uid)
-            return self.tg.send(chat, "👋 <b>Салом! Мен — шахсий эслатма котибингизман.</b>\n\nТўлов, ойлик, солиқ, учрашув — ҳаммасини бир марта ёзиб қўйинг, мен вақтида эслатаман. Бажармагунча тинч қўймайман 😉\n\n🔒 Сизнинг маълумотингизни фақат ўзингиз кўрасиз.\n\nБошлаш учун: <b>➕ Янги эслатма</b>", MAIN_KB)
+            return self.tg.send(chat, tr(lg, "welcome"), main_kb(lg))
         if cmd == "add":
-            L.set_conv(self.db, uid, "title", {})
-            t, k = ask("title", {})
-            return self.tg.send(chat, t, k)
+            d = {}
+            L.set_conv(self.db, uid, "title", d)
+            return self.wiz(uid, chat, d, "title")
         if cmd == "list":
-            return self.show_list(uid, chat)
+            return self.show_list(uid, chat, lg)
         if cmd == "soon":
-            return self.show_soon(uid, chat, u)
+            return self.show_soon(uid, chat, u, lg)
         if cmd == "set":
             return self.show_settings(chat, u)
         if cmd == "cancel":
             L.clear_conv(self.db, uid)
-            return self.tg.send(chat, "Бекор қилинди.", MAIN_KB)
+            return self.tg.send(chat, tr(lg, "cancelled"), main_kb(lg))
         if cmd in ("privacy", "help"):
-            return self.tg.send(chat, "🔒 <b>Махфийлик</b>\n• Эслатмаларингизни фақат сиз кўрасиз — бошқа фойдаланувчи улардан хабар топа олмайди.\n• Бот гуруҳда ишламайди, фақат шахсий чатда.\n• Ҳамма маълумотни ўчириш: /deleteme\n\nКомандалар: /add /list /soon /cancel /deleteme")
+            return self.tg.send(chat, tr(lg, "privacy"))
         if cmd == "deleteme":
-            return self.tg.send(chat, "⚠️ Барча эслатма ва созламаларингиз <b>бутунлай ўчади</b>. Давом этамизми?", kb([[("🗑 Ҳа, ўчир", "del:yes"), ("Йўқ", "del:no")]]))
+            return self.tg.send(chat, tr(lg, "del_all_q"), kb([[(tr(lg, "del_all_yes"), "del:yes"), (tr(lg, "no"), "del:no")]]))
         step, d = L.get_conv(self.db, uid)
-        if step is None:
-            return self.tg.send(chat, "Менюдан танланг 👇", MAIN_KB)
-        self.on_answer(uid, chat, step, d, text)
+        if step in TEXT_STEPS:
+            self.on_text(uid, chat, step, d, text, lg)
+            self.tg.delete(chat, m["message_id"]) if "message_id" in m else None
+        elif step is None:
+            self.tg.send(chat, tr(lg, "pick_menu"), main_kb(lg))
 
-    def on_answer(self, uid, chat, step, d, text, now=None):
-        now = now or self.now()
-        u = L.get_user(self.db, uid)
-        today = L.local_dt(u, now).date()
+    def on_text(self, uid, chat, step, d, text, lg):
         if step == "title":
             v = L.clean(text, 80)
-            if not v:
-                return self.tg.send(chat, "Ном ёзинг.")
-            d["title"] = v
-        elif step == "day":
-            v = L.parse_int(text, 1, 31)
-            if v is None:
-                return self.tg.send(chat, "1 дан 31 гача рақам ёзинг.")
-            d["day"] = v
-        elif step == "date":
-            v = L.parse_date(text, today)
-            if v is None:
-                return self.tg.send(chat, "Сана нотўғри ёки ўтиб кетган. Мисол: <code>05.11.2026</code>")
-            d["date"] = v.isoformat()
-        elif step == "time":
-            v = L.parse_time(text)
-            if v is None:
-                return self.tg.send(chat, "Вақтни шундай ёзинг: <code>8:30</code>")
-            d["hhmm"] = v
+            if v:
+                d["title"] = v
+                self.wiz(uid, chat, d)
         elif step == "amount":
             d["amount"] = L.clean(text, 40)
+            self.wiz(uid, chat, d)
+        elif step == "time_custom":
+            v = L.parse_time(text)
+            if v is None:
+                return self.wiz(uid, chat, d, "time_custom", "\n⚠️ " + tr(lg, "bad_time"))
+            sel = set(d.get("sel", []))
+            if len(sel) < 12:
+                sel.add(v)
+            d["sel"] = sorted(sel)
+            self.wiz(uid, chat, d, "time")
         elif step == "snooze_custom":
             h = L.parse_hours(text)
             if h is None:
-                return self.tg.send(chat, "0.1 дан 72 гача рақам ёзинг (соат).")
+                return self.tg.send(chat, tr(lg, "bad_hours"))
             L.clear_conv(self.db, uid)
-            if L.snooze(self.db, uid, d["oid"], now, hours=h) is None:
-                return self.tg.send(chat, "Бу эслатма аллақачон ёпилган.")
-            return self.tg.send(chat, f"⏰ Яхши, <b>{h:g} соатдан</b> кейин эслатаман.", MAIN_KB)
-        else:
-            return self.tg.send(chat, "Юқоридаги тугмалардан бирини босинг 👆")
-        self.step(uid, chat, d)
+            if L.snooze(self.db, uid, d["oid"], self.now(), hours=h) is None:
+                return self.tg.send(chat, tr(lg, "closed"))
+            self.tg.send(chat, tr(lg, "later_ok", h=f"{h:g}"), main_kb(lg))
 
     def on_callback(self, c):
         uid, msg = c["from"]["id"], c.get("message")
+        self.tg.call("answerCallbackQuery", callback_query_id=c["id"])
         if not msg or msg["chat"]["type"] != "private" or self.limited(uid):
-            return self.tg.call("answerCallbackQuery", callback_query_id=c["id"])
+            return
         chat, mid, data = msg["chat"]["id"], msg["message_id"], c.get("data", "")
         u = L.ensure_user(self.db, uid, chat)
-        now = self.now()
-        self.tg.call("answerCallbackQuery", callback_query_id=c["id"])
         key, _, arg = data.partition(":")
-        step, d = L.get_conv(self.db, uid)
-        if key in ("dn", "sn", "sz") and arg.split(":")[0].isdigit():
-            oid = int(arg.split(":")[0])
-            o = L.own_occ(self.db, uid, oid)  # ЭГАЛИК текшируви
-            if not o:
-                return
-            if key == "dn":
-                L.mark_done(self.db, uid, oid)
-                r = L.own_reminder(self.db, uid, o["reminder_id"])
-                return self.tg.edit(chat, mid, f"✅ <s>{E(r['title'])}</s>\nБажарилди. Қойил! 👏")
-            if o["status"] != "pending":
-                return self.tg.edit(chat, mid, "Бу эслатма ёпилган.")
-            if key == "sn":
-                return self.tg.edit(chat, mid, "⏰ <b>Қачон қайта эслатай?</b>", snooze_kb(oid))
-            val = arg.split(":")[1]
-            if val == "c":
-                L.set_conv(self.db, uid, "snooze_custom", {"oid": oid})
-                return self.tg.send(chat, *ask("snooze_custom", {}))
-            L.snooze(self.db, uid, oid, now, hours=None if val == "t" else float(val), tomorrow=val == "t")
-            return self.tg.edit(chat, mid, "⏰ Хўп, " + ("эртага" if val == "t" else f"<b>{val} соатдан</b> кейин") + " эслатаман.")
-        if key == "tpl" and arg in TEMPLATES:
-            return self.step(uid, chat, {"title": TEMPLATES[arg].split(" ", 1)[1], "freq": "monthly"})
-        if step is None and key in ("fr", "wd", "dy", "tm", "ld", "am"):
+        if key == "x":
             return
-        if key == "fr" and arg in FREQ and step == "freq":
-            d["freq"] = arg
-        elif key == "wd" and step == "day" and (v := L.parse_int(arg, 0, 6)) is not None:
-            d["day"] = v
-        elif key == "dy" and step == "day" and (v := L.parse_int(arg, 1, 31)) is not None:
-            d["day"] = v
-        elif key == "tm" and step == "time" and (v := L.parse_time(arg)):
-            d["hhmm"] = v
-        elif key == "ld" and step == "lead" and (v := L.parse_int(arg, 0, 7)) is not None:
-            d["lead"] = v
-        elif key == "am" and step == "amount":
-            d["amount"] = ""
-        elif key == "ls":
-            return self.show_item(uid, chat, mid, arg)
-        elif key in ("pz", "rm", "rmy"):
-            return self.item_action(uid, chat, mid, key, arg)
-        elif key == "tz" and (v := L.parse_hours(arg.lstrip("+")) if arg.lstrip("+").replace(".", "").isdigit() else None):
-            self.db.execute("UPDATE users SET tz=? WHERE user_id=?", (v, uid)); self.db.commit()
-            return self.tg.edit(chat, mid, f"✅ Вақт минтақаси: UTC+{v:g}")
-        elif key == "rp" and (v := L.parse_int(arg, 1, 12)):
-            self.db.execute("UPDATE users SET repeat_h=? WHERE user_id=?", (v, uid)); self.db.commit()
-            return self.tg.edit(chat, mid, f"✅ Жавоб бермасангиз, ҳар <b>{v} соатда</b> эслатаман.")
+        if key == "lg" and arg in LANG_NAME:
+            first = u["lang"] is None
+            L.set_user(self.db, uid, lang=arg)
+            u = L.get_user(self.db, uid)
+            if first:
+                self.tg.edit(chat, mid, tr(arg, "lang_set"))
+                return self.tg.send(chat, tr(arg, "welcome"), main_kb(arg))
+            self.tg.send(chat, tr(arg, "lang_set"), main_kb(arg))
+            return self.show_settings(chat, u, mid)
+        if u["lang"] is None:
+            return self.ask_lang(chat)
+        lg = u["lang"]
+        step, d = L.get_conv(self.db, uid)
+        if key in WIZ_KEYS:
+            if step is None or d.get("mid") != mid:
+                return  # эски/эскирган тугма
+            return self.wizard_cb(uid, chat, mid, key, arg, step, d, u, lg)
+        if key in ("dn", "sn", "sz") and arg.split(":")[0].isdigit():
+            return self.occ_cb(uid, chat, mid, key, arg, lg)
+        if key == "addnew":
+            d = {"mid": mid}
+            L.set_conv(self.db, uid, "title", d)
+            return self.wiz(uid, chat, d, "title")
+        if key == "lst":
+            return self.show_list(uid, chat, lg, mid)
+        if key == "ls" and arg.isdigit():
+            return self.show_item(uid, chat, mid, int(arg), lg)
+        if key in ("pz", "rm", "rmy") and arg.isdigit():
+            return self.item_action(uid, chat, mid, key, int(arg), lg)
+        if key == "tz" and arg in ("5", "3"):
+            L.set_user(self.db, uid, tz=float(arg))
+        elif key == "rp" and arg in ("0", "1", "2", "3", "6"):
+            L.set_user(self.db, uid, repeat_h=float(arg))
+        elif key == "snd":
+            return self.tg.send(chat, tr(lg, "sound_help"))
         elif key == "del":
             if arg == "yes":
                 L.delete_user_data(self.db, uid)
-                return self.tg.edit(chat, mid, "🗑 Ҳамма маълумотингиз ўчирилди.")
-            return self.tg.edit(chat, mid, "Бекор қилинди.")
+                return self.tg.edit(chat, mid, tr(lg, "all_deleted"))
+            return self.tg.edit(chat, mid, tr(lg, "cancelled"))
         else:
             return
-        self.step(uid, chat, d)
+        self.show_settings(chat, L.get_user(self.db, uid), mid)
+
+    def wizard_cb(self, uid, chat, mid, key, arg, step, d, u, lg):
+        if key == "cx":
+            L.clear_conv(self.db, uid)
+            return self.tg.edit(chat, mid, tr(lg, "cancelled"))
+        if key == "fr" and step == "freq" and arg in ("once", "monthly", "weekly", "daily"):
+            d["freq"] = arg
+        elif key in ("dy", "wd") and step in ("day", "wd") and (v := L.parse_int(arg, 0 if key == "wd" else 1, 6 if key == "wd" else 31)) is not None:
+            d["day"] = v
+        elif key == "cal" and step == "date":
+            try:
+                y, m = map(int, arg.split("-"))
+                date(y, m, 1)
+            except ValueError:
+                return
+            d["cal"] = [y, m]
+            return self.wiz(uid, chat, d, "date")
+        elif key == "cd" and step == "date":
+            try:
+                v = date.fromisoformat(arg)
+            except ValueError:
+                return
+            if v < self.today(u):
+                return
+            d["date"] = v.isoformat()
+        elif key == "tm" and step == "time":
+            sel = set(d.get("sel", []))
+            sel ^= {arg} if L.parse_time(arg) == arg else set()
+            d["sel"] = sorted(sel)
+            return self.wiz(uid, chat, d, "time")
+        elif key == "tmc" and step == "time":
+            return self.wiz(uid, chat, d, "time_custom")
+        elif key == "tmd" and step == "time":
+            if not d.get("sel"):
+                return self.wiz(uid, chat, d, "time", tr(lg, "time_need"))
+            d["times"] = sorted(d["sel"])
+        elif key == "ld" and step == "lead" and arg in ("0", "1", "3", "7"):
+            d["lead"] = int(arg)
+        elif key == "am" and step == "amount":
+            d["amount"] = ""
+        else:
+            return
+        self.wiz(uid, chat, d)
+
+    def occ_cb(self, uid, chat, mid, key, arg, lg):
+        oid = int(arg.split(":")[0])
+        o = L.own_occ(self.db, uid, oid)  # ЭГАЛИК текшируви
+        if not o:
+            return
+        if key == "dn":
+            L.mark_done(self.db, uid, oid)
+            r = L.own_reminder(self.db, uid, o["reminder_id"])
+            return self.tg.edit(chat, mid, tr(lg, "done_msg", title=E(r["title"])))
+        if o["status"] != "pending":
+            return self.tg.edit(chat, mid, tr(lg, "closed"))
+        if key == "sn":
+            return self.tg.edit(chat, mid, tr(lg, "later_q"), snooze_kb(oid, lg))
+        val = arg.split(":")[1] if ":" in arg else ""
+        if val == "c":
+            d = {"oid": oid, "mid": mid}
+            L.set_conv(self.db, uid, "snooze_custom", d)
+            return self.tg.edit(chat, mid, tr(lg, "later_custom_q"))
+        if val == "t":
+            L.snooze(self.db, uid, oid, self.now(), tomorrow=True)
+            return self.tg.edit(chat, mid, tr(lg, "later_tom"))
+        h = L.parse_hours(val)
+        if h is not None:
+            L.snooze(self.db, uid, oid, self.now(), hours=h)
+            self.tg.edit(chat, mid, tr(lg, "later_ok", h=val))
 
     # ---------- рўйхатлар ----------
-    def show_list(self, uid, chat):
+    def show_list(self, uid, chat, lg, mid=None):
         rows = self.db.execute("SELECT * FROM reminders WHERE user_id=? ORDER BY id", (uid,)).fetchall()
         if not rows:
-            return self.tg.send(chat, "Ҳозирча эслатма йўқ. <b>➕ Янги эслатма</b> ни босинг.", MAIN_KB)
-        self.tg.send(chat, "📋 <b>Эслатмаларим</b>\nУстига босиб бошқаринг:", kb([[(f"{'⏸ ' if not r['active'] else ''}{r['title']}", f"ls:{r['id']}")] for r in rows]))
+            text, markup = tr(lg, "list_empty"), None
+        else:
+            text = tr(lg, "list_title")
+            markup = kb([[(("⏸ " if not r["active"] else "🔔 ") + r["title"], f"ls:{r['id']}")] for r in rows])
+        if not (mid and self.tg.edit(chat, mid, text, markup)):
+            self.tg.send(chat, text, markup)
 
-    def show_item(self, uid, chat, mid, rid):
-        r = L.own_reminder(self.db, uid, int(rid)) if rid.isdigit() else None
+    def show_item(self, uid, chat, mid, rid, lg):
+        r = L.own_reminder(self.db, uid, rid)
         if not r:
             return
-        self.tg.edit(chat, mid, describe(r), kb([[("▶️ Давом эттириш" if not r["active"] else "⏸ Тўхтатиш", f"pz:{r['id']}"), ("🗑 Ўчириш", f"rm:{r['id']}")]]))
+        self.tg.edit(chat, mid, describe(r, lg), kb([[(tr(lg, "resume" if not r["active"] else "pause"), f"pz:{rid}"), (tr(lg, "del"), f"rm:{rid}")], [(tr(lg, "back"), "lst")]]))
 
-    def item_action(self, uid, chat, mid, key, rid):
-        r = L.own_reminder(self.db, uid, int(rid)) if rid.isdigit() else None
+    def item_action(self, uid, chat, mid, key, rid, lg):
+        r = L.own_reminder(self.db, uid, rid)
         if not r:
             return
         if key == "pz":
-            self.db.execute("UPDATE reminders SET active=? WHERE id=? AND user_id=?", (0 if r["active"] else 1, r["id"], uid)); self.db.commit()
-            return self.show_item(uid, chat, mid, rid)
+            self.db.execute("UPDATE reminders SET active=? WHERE id=? AND user_id=?", (0 if r["active"] else 1, rid, uid))
+            self.db.commit()
+            return self.show_item(uid, chat, mid, rid, lg)
         if key == "rm":
-            return self.tg.edit(chat, mid, f"Ўчирайми: <b>{E(r['title'])}</b>?", kb([[("🗑 Ҳа", f"rmy:{r['id']}"), ("Йўқ", f"ls:{r['id']}")]]))
-        self.db.execute("DELETE FROM occ WHERE reminder_id=? AND user_id=?", (r["id"], uid))
-        self.db.execute("DELETE FROM reminders WHERE id=? AND user_id=?", (r["id"], uid)); self.db.commit()
-        self.tg.edit(chat, mid, "🗑 Ўчирилди.")
+            return self.tg.edit(chat, mid, tr(lg, "del_q", title=E(r["title"])), kb([[(tr(lg, "yes_del"), f"rmy:{rid}"), (tr(lg, "no"), f"ls:{rid}")]]))
+        self.db.execute("DELETE FROM occ WHERE reminder_id=? AND user_id=?", (rid, uid))
+        self.db.execute("DELETE FROM reminders WHERE id=? AND user_id=?", (rid, uid))
+        self.db.commit()
+        self.tg.edit(chat, mid, tr(lg, "deleted"), kb([[(tr(lg, "back"), "lst")]]))
 
-    def show_soon(self, uid, chat, u):
-        today = L.local_dt(u, self.now()).date()
+    def show_soon(self, uid, chat, u, lg):
+        now = self.now()
         items = []
-        for r in self.db.execute("SELECT * FROM reminders WHERE user_id=? AND active=1", (uid,)):
-            nd = L.next_due(r, today)
-            if nd and (nd - today).days <= 30:
-                items.append((nd, r))
+        for r in self.db.execute("SELECT * FROM reminders WHERE user_id=? AND active=1", (uid,)).fetchall():
+            ts = L.next_fire(self.db, uid, r, now)
+            if ts and ts - now <= 30 * 86400:
+                items.append((ts, r))
         if not items:
-            return self.tg.send(chat, "Яқин 30 кунда эслатма йўқ ✨", MAIN_KB)
-        lines = [f"{'🔴' if n == today else '🟡'} <b>{n:%d.%m}</b> · {E(r['title'])}" + (f" · {E(r['amount'])}" if r["amount"] else "") for n, r in sorted(items, key=lambda x: x[0])]
-        self.tg.send(chat, "📅 <b>Яқин 30 кун</b>\n\n" + "\n".join(lines), MAIN_KB)
+            return self.tg.send(chat, tr(lg, "soon_empty"), main_kb(lg))
+        lines = [f"🔔 <b>{self.fmt_ts(u, ts)}</b> · {E(r['title'])}" + (f" · {E(r['amount'])}" if r["amount"] else "") for ts, r in sorted(items, key=lambda x: x[0])]
+        self.tg.send(chat, tr(lg, "soon_title") + "\n\n" + "\n".join(lines), main_kb(lg))
 
-    def show_settings(self, chat, u):
-        self.tg.send(chat, f"⚙️ <b>Созламалар</b>\n🌍 Вақт: UTC+{u['tz']:g}\n↻ Такрор: ҳар {u['repeat_h']:g} соат\n🌙 Тинч соатлар: {u['quiet_start']}:00–{u['quiet_end']}:00 (хабар келмайди)\n\n/privacy · /deleteme",
-                     kb([[("🇺🇿 +5 Тошкент", "tz:5"), ("+3 Москва", "tz:3"), ("+6", "tz:6")], [("↻ 1 соат", "rp:1"), ("↻ 2", "rp:2"), ("↻ 3", "rp:3"), ("↻ 6", "rp:6")]]))
+    def show_settings(self, chat, u, mid=None):
+        lg = u["lang"] or "uz"
+        rep = tr(lg, "rep_off") if not u["repeat_h"] else tr(lg, "rep_val", h=f"{u['repeat_h']:g}")
+        text = tr(lg, "settings", lang=LANG_NAME[lg], tz=f"{u['tz']:g}", rep=rep, qs=u["quiet_start"], qe=u["quiet_end"])
+        markup = kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")], [(tr(lg, "tz5"), "tz:5"), (tr(lg, "tz3"), "tz:3")],
+                     [(tr(lg, "rep_btn_off"), "rp:0")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 2, 3, 6)], [(tr(lg, "sound_btn"), "snd")]])
+        if not (mid and self.tg.edit(chat, mid, text, markup)):
+            self.tg.send(chat, text, markup)
 
     # ---------- цикл ----------
     def tick(self):
@@ -328,7 +487,7 @@ class App:
         L.sync(self.db, now)
         for x in L.pop_due(self.db, now):
             try:
-                self.tg.send(x["chat_id"], card(x["title"], x["due"], x["days_left"], x["amount"], x["sent_count"]), action_kb(x["oid"]))
+                self.tg.send(x["chat_id"], card(x), action_kb(x["oid"], x.get("lang") or "uz"))
             except Exception as e:
                 print("юбориб бўлмади:", type(e).__name__, flush=True)
 
@@ -352,10 +511,11 @@ def run():
                         app.on_message(up["message"])
                     elif "callback_query" in up:
                         app.on_callback(up["callback_query"])
-                except Exception as e:  # битта хато ботни тўхтатмайди; матн логга ёзилмайди
+                except Exception as e:  # битта хато ботни тўхтатмайди
                     fr = traceback.extract_tb(e.__traceback__)[-1]
                     print("ИШЛОВ ХАТОСИ:", type(e).__name__, e, "— қатор", fr.lineno, fr.name, flush=True)
-            conn.execute("INSERT OR REPLACE INTO meta VALUES('offset',?)", (str(offset),)); conn.commit()
+            conn.execute("INSERT OR REPLACE INTO meta VALUES('offset',?)", (str(offset),))
+            conn.commit()
             app.tick()
         except Exception as e:
             print("тармоқ хатоси:", type(e).__name__, flush=True)
