@@ -1,5 +1,7 @@
 # DOJU Telegram канали: тайёрлаш тўплами
 
+Канал: https://t.me/doju_eslatma (очилган)
+
 Мақсад: битта чиройли канал. Ичида **видео қўлланма** (ўзбекча ва русча), **DOJU фони**, **DOJU овози** ва бот ҳаволаси. Ботдаги «🎬 Видео қўлланма» тугмаси босилганда шу каналдаги **видео постга** тўғридан-тўғри ўтади.
 
 ## 1. Канални очиш (2 минут)
@@ -13,15 +15,39 @@
 6. Каналда **Discussion/Реакциялар** шарт эмас.
 
 ## 2. Постлар (шу тартибда, ҳар бирини алоҳида юборинг)
-**Пост 1: ўзбекча видео** (файл: `doju_uz.mp4`). Тагига ёзув:
+**Пост 1: ўзбекча видео** (файл: `doju_uz.mp4`). Тагига ёзув (нусхаланг):
 ```
-🎬 DOJU Eslatma Kotibi: video qo'llanma (1 daqiqa)
-Bot: @eslatma_Kotibi_bot
+🔔 To'lov, oylik, soliq: bir marta yozing, DOJU o'zi eslatadi
+
+Eslatma esdan chiqib, mijozni kutdirganmisiz yoki to'lovni kechiktirganmisiz? DOJU Eslatma Kotibi shu muammoni hal qiladi:
+
+✅ Aniq kuni, har oy, har hafta yoki har kuni eslatadi
+✅ Bajarmaguningizcha qayta-qayta eslatadi
+✅ Telegram ichida ishlaydi: alohida ilova kerak emas
+✅ Eslatmalaringizni boshqa foydalanuvchilar ko'rmaydi
+
+▶️ 1 daqiqalik videoda hammasi ko'rsatilgan.
+
+🆓 Hozir bepul. Har kuni yaxshilab boryapmiz: xato yoki taklifingiz bo'lsa, botdagi «📩 Asoschiga yozish» tugmasi orqali yozing.
+
+🤖 @eslatma_Kotibi_bot
 ```
-**Пост 2: русча видео** (файл: `doju_ru.mp4`). Тагига ёзув:
+**Пост 2: русча видео** (файл: `doju_ru.mp4`). Тагига ёзув (нусхаланг):
 ```
-🎬 DOJU: видео-инструкция (1 минута)
-Бот: @eslatma_Kotibi_bot
+🔔 Платежи, зарплата, налоги: запишите один раз, DOJU напомнит сам
+
+Забывали о платеже или заставляли клиента ждать? DOJU Секретарь-напоминатель решает эту проблему:
+
+✅ Напоминает в нужный день: раз в месяц, неделю или каждый день
+✅ Повторяет, пока вы не отметите «Выполнено»
+✅ Работает прямо в Telegram: отдельное приложение не нужно
+✅ Ваши напоминания не видят другие пользователи
+
+▶️ В видео на 1 минуту показано всё.
+
+🆓 Сейчас бесплатно. Мы улучшаем бота каждый день: нашли ошибку или есть идея, напишите через кнопку «📩 Написать основателю» в боте.
+
+🤖 @eslatma_Kotibi_bot
 ```
 **Пост 3: фон** (расм: `dizayn/fon_doju_tungi.png`, «File» сифатида ҳам бўлади). Тагига:
 ```
