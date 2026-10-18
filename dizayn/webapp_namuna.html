@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DOJU Eslatma Kotibi — namuna</title>
+<style>
+:root{
+  --bg:#0b1430; --bg2:#101c44; --card:#16234f; --card2:#1c2b5e; --line:#2a3a74;
+  --text:#f2f5ff; --mute:#9fb0de; --red:#e23042; --blue:#2e6bff; --gold:#f0be64; --ok:#3ccf91;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+  background:radial-gradient(120% 60% at 50% 0%,var(--bg2),var(--bg));min-height:100vh;padding-bottom:84px}
+.wrap{max-width:480px;margin:0 auto;padding:16px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#102254,#2e6bff);display:grid;place-items:center}
+.logo i{display:block;width:26px;height:24px;background:#f6f8ff;border-radius:5px;border-top:8px solid var(--red)}
+.top h1{font-size:19px;letter-spacing:.3px}.top small{color:var(--mute)}
+.badge{margin-left:auto;font-size:11px;color:var(--gold);border:1px solid var(--gold);border-radius:99px;padding:2px 8px}
+.sec{margin:18px 0 8px;font-size:13px;color:var(--mute);text-transform:uppercase;letter-spacing:.8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:10px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.over .dot{background:var(--red)}.today .dot{background:var(--gold)}.soon .dot{background:var(--blue)}
+.t{font-weight:650}.m{color:var(--mute);font-size:13px}
+.amt{margin-left:auto;font-weight:650;white-space:nowrap}
+.btns{display:flex;gap:8px;margin-top:12px}
+.b{flex:1;border:0;border-radius:12px;padding:11px;font-weight:650;font-size:14px;color:var(--text);background:var(--card2)}
+.b.ok{background:var(--ok);color:#06251a}.b.red{background:var(--red)}
+.b.ghost{background:transparent;border:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.stat b{display:block;font-size:22px}.stat span{font-size:12px;color:var(--mute)}
+label{display:block;font-size:13px;color:var(--mute);margin:14px 0 6px}
+.in{width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px;color:var(--text);font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:9px 14px;border-radius:99px;background:var(--card);border:1px solid var(--line);color:var(--text);font-size:14px}
+.chip.on{background:var(--blue);border-color:var(--blue)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center}
+.cal span{padding:9px 0;border-radius:10px;background:var(--card);font-size:14px}
+.cal .h{background:none;color:var(--mute);font-size:12px;padding:2px}
+.cal .on{background:var(--red);font-weight:700}
+.cal .x{opacity:.35}
+.sw{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--line)}
+.tog{width:46px;height:26px;border-radius:99px;background:var(--line);position:relative}
+.tog:after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+.tog.on{background:var(--ok)}.tog.on:after{left:23px}
+nav{position:fixed;bottom:0;left:0;right:0;background:rgba(11,20,48,.94);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+nav div{max-width:480px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+nav a{text-align:center;color:var(--mute);text-decoration:none;font-size:11px;padding:6px 0;border-radius:12px}
+nav a b{display:block;font-size:20px;font-weight:400}
+nav a.on{color:var(--text);background:var(--card2)}
+.page{display:none}.page.on{display:block}
+.fab{background:var(--red);border-radius:14px;padding:14px;text-align:center;font-weight:700;margin-top:18px}
+.note{font-size:12px;color:var(--mute);text-align:center;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="logo"><i></i></div><div><h1>DOJU</h1><small>Eslatma Kotibi</small></div><span class="badge">NAMUNA</span></div>
+
+  <!-- BUGUN -->
+  <section class="page on" id="home">
+    <div class="stats">
+      <div class="stat"><b style="color:var(--red)">1</b><span>Muddati o'tgan</span></div>
+      <div class="stat"><b style="color:var(--gold)">2</b><span>Bugun</span></div>
+      <div class="stat"><b style="color:var(--blue)">4</b><span>Shu hafta</span></div>
+    </div>
+    <div class="sec">Muddati o'tgan</div>
+    <div class="card over"><div class="row"><i class="dot"></i><div><div class="t">Ofis ijarasi</div><div class="m">2 kun o'tgan</div></div><div class="amt">5 000 000</div></div>
+      <div class="btns"><button class="b ok">✅ Bajarildi</button><button class="b">⏰ Keyinroq</button></div></div>
+    <div class="sec">Bugun</div>
+    <div class="card today"><div class="row"><i class="dot"></i><div><div class="t">Xodimlarga oylik</div><div class="m">18:00 · har oy 18-kuni</div></div><div class="amt">48 500 000</div></div>
+      <div class="btns"><button class="b ok">✅ Bajarildi</button><button class="b">⏰ Keyinroq</button></div></div>
+    <div class="card today"><div class="row"><i class="dot"></i><div><div class="t">Internet (WiFi)</div><div class="m">20:00 · har oy</div></div><div class="amt">350 000</div></div></div>
+    <div class="sec">Yaqinda</div>
+    <div class="card soon"><div class="row"><i class="dot"></i><div><div class="t">Soliq hisoboti</div><div class="m">20-okt · 2 kundan keyin</div></div></div></div>
+    <div class="card soon"><div class="row"><i class="dot"></i><div><div class="t">CRM obunasi</div><div class="m">25-okt</div></div><div class="amt">1 200 000</div></div></div>
+    <div class="note">Namuna: bu yerdagi ma'lumotlar o'ylab topilgan</div>
+  </section>
+
+  <!-- RO'YXAT -->
+  <section class="page" id="list">
+    <div class="sec" style="margin-top:0">Hammasi (6)</div>
+    <div class="card"><div class="row"><div><div class="t">Ofis ijarasi</div><div class="m">🔁 har oyning 16-kuni · 09:00</div></div><div class="amt">5 000 000</div></div></div>
+    <div class="card"><div class="row"><div><div class="t">Xodimlarga oylik</div><div class="m">🔁 har oyning 18-kuni · 18:00</div></div><div class="amt">48 500 000</div></div></div>
+    <div class="card"><div class="row"><div><div class="t">Internet (WiFi)</div><div class="m">🔁 har oy · 20:00</div></div><div class="amt">350 000</div></div></div>
+    <div class="card"><div class="row"><div><div class="t">Soliq hisoboti</div><div class="m">📅 20-oktabr · 1 kun oldin ogohlantirish</div></div></div>
+      <div class="btns"><button class="b">✏️ Tahrirlash</button><button class="b ghost">🗑 O'chirish</button></div></div>
+    <div class="card"><div class="row"><div><div class="t">CRM obunasi</div><div class="m">🔁 har oyning 25-kuni · 10:00</div></div><div class="amt">1 200 000</div></div></div>
+    <div class="card"><div class="row"><div><div class="t">Dori ichish</div><div class="m">☀️ har kuni · 08:00, 21:00</div></div></div></div>
+  </section>
+
+  <!-- YANGI -->
+  <section class="page" id="new">
+    <label style="margin-top:0">Nimani eslatay?</label>
+    <input class="in" value="Ijara to'lovi" />
+    <label>Qachon?</label>
+    <div class="chips"><span class="chip">Bir marta</span><span class="chip on">Har oy</span><span class="chip">Har hafta</span><span class="chip">Har kuni</span></div>
+    <label>Oyning kuni</label>
+    <div class="cal">
+      <span class="h">1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+      <span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span>
+      <span>15</span><span class="on">16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span>
+    </div>
+    <label>Soatlar</label>
+    <div class="chips"><span class="chip on">09:00</span><span class="chip">12:00</span><span class="chip">18:00</span><span class="chip">+ boshqa</span></div>
+    <label>Summa (ixtiyoriy)</label>
+    <input class="in" value="5 000 000" />
+    <div class="fab">Saqlash</div>
+  </section>
+
+  <!-- SOZLAMALAR -->
+  <section class="page" id="set">
+    <div class="sec" style="margin-top:0">Umumiy</div>
+    <div class="sw"><span>Til</span><span class="m">🇺🇿 O'zbekcha</span></div>
+    <div class="sw"><span>Vaqt mintaqasi</span><span class="m">Toshkent (+5)</span></div>
+    <div class="sw"><span>Takror eslatma</span><span class="m">har 1 daqiqa</span></div>
+    <div class="sw"><span>Tinch soatlar</span><span class="m">22:00–07:00</span></div>
+    <div class="sw"><span>Kunlik xulosa</span><i class="tog on"></i></div>
+    <div class="sec">Boshqa</div>
+    <div class="sw"><span>📩 Asoschiga yozish</span><span class="m">›</span></div>
+    <div class="sw"><span>🔒 Maxfiylik</span><span class="m">›</span></div>
+    <div class="note">Botdagi va shu oynadagi eslatmalar bir xil — birida yozsangiz, ikkinchisida ham ko'rinadi</div>
+  </section>
+</div>
+
+<nav><div>
+  <a href="#home" data-p="home"><b>🏠</b>Bugun</a>
+  <a href="#list" data-p="list"><b>📋</b>Hammasi</a>
+  <a href="#new" data-p="new"><b>➕</b>Yangi</a>
+  <a href="#set" data-p="set"><b>⚙️</b>Sozlamalar</a>
+</div></nav>
+<script>
+function show(){var p=(location.hash||'#home').slice(1);if(!document.getElementById(p))p='home';
+  document.querySelectorAll('.page').forEach(e=>e.classList.toggle('on',e.id===p));
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));}
+addEventListener('hashchange',show);show();
+</script>
+</body>
+</html>
