@@ -219,6 +219,13 @@ def _set_settings(conn, uid, p):
         if float(p["repeat_h"]) not in REPEAT_CHOICES:
             raise ApiError("bad_value")
         kw["repeat_h"] = float(p["repeat_h"])
+    if p.get("quiet_off"):
+        kw.update(quiet_start=0, quiet_end=0)  # бошланиш = тугаш: тинч соат йўқ
+    elif "quiet_start" in p or "quiet_end" in p:
+        qs, qe = _int(p.get("quiet_start")), _int(p.get("quiet_end"))
+        if not (18 <= qs <= 23 and 4 <= qe <= 10):
+            raise ApiError("bad_value")
+        kw.update(quiet_start=qs, quiet_end=qe)
     if "digest_hour" in p:
         h = p["digest_hour"]
         if h not in DIGEST_HOURS:

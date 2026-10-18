@@ -187,3 +187,22 @@ def test_admin_inbox_only_for_admin_and_anonymous():
     st = W.handle(db, 9, "fb_done", {"id": 1, "done": False}, NOW, admin_id=9)
     assert [f["done"] for f in st["feedback"]] == [False, False]
     raises("not_found", W.handle, db, 9, "fb_done", {"id": 999, "done": True}, NOW, admin_id=9)
+
+
+def test_quiet_hours_settable_and_validated():
+    db = fresh()
+    st = W.handle(db, 1, "settings", {"quiet_start": 23, "quiet_end": 8}, NOW)
+    assert (st["user"]["quiet_start"], st["user"]["quiet_end"]) == (23, 8)
+    st = W.handle(db, 1, "settings", {"quiet_off": True}, NOW)
+    qs, qe = st["user"]["quiet_start"], st["user"]["quiet_end"]
+    assert qs == qe and not L.in_quiet(3, qs, qe) and not L.in_quiet(23, qs, qe)
+    for bad in ({"quiet_start": 10, "quiet_end": 7}, {"quiet_start": 22, "quiet_end": 15}, {"quiet_start": 22}, {"quiet_start": "x", "quiet_end": 7}, {"quiet_start": 24, "quiet_end": 7}):
+        raises("bad_value", W.handle, db, 1, "settings", bad, NOW)
+    assert (L.get_user(db, 2)["quiet_start"], L.get_user(db, 2)["quiet_end"]) == (22, 7)  # бошқа фойдаланувчига тегмайди
+    W.handle(db, 1, "settings", {"quiet_start": 22, "quiet_end": 8, "repeat_h": 1}, NOW)
+    u = dict(L.get_user(db, 1))
+    assert L.next_after_send(u, ["09:00"], ts(2026, 11, 2, 19, 0)) == ts(2026, 11, 2, 20, 0)  # 20:00 тинч эмас — такрор бор
+    assert L.next_after_send(u, ["09:00"], ts(2026, 11, 2, 21, 30)) == ts(2026, 11, 3, 9, 0)  # 22:30 тинч — эртага эрталаб
+    W.handle(db, 1, "settings", {"quiet_off": True}, NOW)
+    u = dict(L.get_user(db, 1))
+    assert L.next_after_send(u, ["09:00"], ts(2026, 11, 2, 21, 30)) == ts(2026, 11, 2, 22, 30)  # тинч соат ўчиқ — кечаси ҳам такрор

@@ -116,7 +116,7 @@ uz:{inbox:"Xabarlar",inboxHead:"Foydalanuvchilar xabarlari",fbNew:"Yangi",fbDone
  pause:"⏸ To'xtatish",resume:"▶️ Davom ettirish",skip:"⏭ Keyingisini o'tkazish",paused:"to'xtatilgan",
  tDone:"✅ Bajarildi",tLater:"⏰ Keyinroq eslatiladi",tDel:"O'chirildi",tSaved:"✅ Saqlandi",tFb:"✅ Rahmat! Xabar asoschiga yuborildi",tSkip:"⏭ O'tkazildi",tSet:"Saqlandi",
  general:"Umumiy",lang:"Til",tz:"Vaqt mintaqasi",tz5:"Toshkent (+5)",tz3:"Moskva (+3)",rep:"Takror eslatma",rep0:"o'chiq",rep1m:"har 1 daqiqa",rep1:"1 soat",rep3:"3 soat",rep6:"6 soat",
- quiet:"Tinch soatlar",quietNote:"takroriy xabar kelmaydi",digest:"Kunlik xulosa",dgOff:"o'chiq",other:"Boshqa",fb:"📩 Asoschiga yozish",fbq:"Xato, noqulaylik yoki taklifingizni yozing. Kimligingiz ko'rsatilmaydi.",fbSend:"Yuborish",fbEmpty:"Avval matn yozing.",priv:"🔒 Maxfiylik",
+ quiet:"Tinch soatlar",quietNote:"takroriy xabar kelmaydi",quietOn:"yoqiq",quietOff:"o'chiq",qFrom:"dan",qTo:"gacha",digest:"Kunlik xulosa",dgOff:"o'chiq",other:"Boshqa",fb:"📩 Asoschiga yozish",fbq:"Xato, noqulaylik yoki taklifingizni yozing. Kimligingiz ko'rsatilmaydi.",fbSend:"Yuborish",fbEmpty:"Avval matn yozing.",priv:"🔒 Maxfiylik",
  privText:"Eslatmalaringizni faqat siz ko'rasiz. Boshqa foydalanuvchilar ularni ko'ra olmaydi. Hamma ma'lumotni botda /deleteme bilan o'chirasiz.",
  note:"Botdagi va shu oynadagi eslatmalar bir xil: birida yozsangiz, ikkinchisida ham ko'rinadi",kechiktirilgan:"gacha kechiktirilgan",
  eTitle:"Nimani eslatishni yozing.",eDay:"Oyning kunini tanlang.",eWd:"Hafta kunini tanlang.",eDate:"Sanani tanlang (bugun yoki keyingi kun).",eTime:"Kamida bitta soat tanlang.",eLimit:"Eslatmalar soni chegaraga yetdi. Keraksizini o'chiring.",
@@ -132,7 +132,7 @@ ru:{inbox:"Сообщения",inboxHead:"Сообщения пользоват�
  pause:"⏸ Приостановить",resume:"▶️ Возобновить",skip:"⏭ Пропустить ближайшее",paused:"приостановлено",
  tDone:"✅ Выполнено",tLater:"⏰ Напомню позже",tDel:"Удалено",tSaved:"✅ Сохранено",tFb:"✅ Спасибо! Сообщение отправлено основателю",tSkip:"⏭ Пропущено",tSet:"Сохранено",
  general:"Общие",lang:"Язык",tz:"Часовой пояс",tz5:"Ташкент (+5)",tz3:"Москва (+3)",rep:"Повтор напоминания",rep0:"выкл",rep1m:"каждую минуту",rep1:"1 час",rep3:"3 часа",rep6:"6 часов",
- quiet:"Тихие часы",quietNote:"повторов нет",digest:"Ежедневная сводка",dgOff:"выкл",other:"Другое",fb:"📩 Написать основателю",fbq:"Напишите об ошибке, неудобстве или предложении. Ваше имя не показывается.",fbSend:"Отправить",fbEmpty:"Сначала напишите текст.",priv:"🔒 Конфиденциальность",
+ quiet:"Тихие часы",quietNote:"повторов нет",quietOn:"вкл",quietOff:"выкл",qFrom:"с",qTo:"до",digest:"Ежедневная сводка",dgOff:"выкл",other:"Другое",fb:"📩 Написать основателю",fbq:"Напишите об ошибке, неудобстве или предложении. Ваше имя не показывается.",fbSend:"Отправить",fbEmpty:"Сначала напишите текст.",priv:"🔒 Конфиденциальность",
  privText:"Ваши напоминания видите только вы. Другие пользователи их не увидят. Все данные можно удалить в боте командой /deleteme.",
  note:"Напоминания в боте и в этом окне одинаковые: записали в одном — видно в другом",kechiktirilgan:"отложено до",
  eTitle:"Напишите, о чём напомнить.",eDay:"Выберите день месяца.",eWd:"Выберите день недели.",eDate:"Выберите дату (сегодня или позже).",eTime:"Выберите хотя бы одно время.",eLimit:"Достигнут лимит напоминаний. Удалите ненужные.",
@@ -227,12 +227,14 @@ function viewNew(){
 function viewSet(){
   var u=S.user;
   function chip(act,v,l,on){return '<button class="chip'+(on?" on":"")+'" data-act="'+act+'" data-v="'+v+'">'+l+'</button>'}
-  var rp=u.repeat_h;
+  var rp=u.repeat_h, qOff=u.quiet_start===u.quiet_end;
+  function selHours(id,a,b,cur){var o="";for(var i=a;i<=b;i++)o+='<option value="'+i+'"'+(i===cur?" selected":"")+'>'+pad(i)+':00</option>';return '<select class="in" id="'+id+'" aria-label="'+id+'">'+o+'</select>'}
   var h='<div class="sec" style="margin-top:0">'+t("general")+'</div>'+
    '<div class="sw"><span>'+t("lang")+'</span><div class="chips">'+chip("lang","uz","🇺🇿 UZB",u.lang==="uz")+chip("lang","ru","🇷🇺 РУС",u.lang==="ru")+'</div></div>'+
    '<div class="sw"><span>'+t("tz")+'</span><div class="chips">'+chip("tz","5",t("tz5"),u.tz===5)+chip("tz","3",t("tz3"),u.tz===3)+'</div></div>'+
    '<div class="sw"><span>'+t("rep")+'</span><div class="chips">'+chip("rep","0",t("rep0"),rp===0)+chip("rep","0.016667",t("rep1m"),rp>0&&rp<0.1)+chip("rep","1",t("rep1"),rp===1)+chip("rep","3",t("rep3"),rp===3)+chip("rep","6",t("rep6"),rp===6)+'</div></div>'+
-   '<div class="sw"><span>'+t("quiet")+'</span><span class="ro">'+pad(u.quiet_start)+':00–'+pad(u.quiet_end)+':00 · '+t("quietNote")+'</span></div>'+
+   '<div class="sw" style="align-items:flex-start"><span>'+t("quiet")+'</span><div><div class="chips" style="justify-content:flex-end">'+chip("quiet","off",t("quietOff"),qOff)+chip("quiet","on",t("quietOn"),!qOff)+'</div>'+
+     (qOff?'':'<div class="chips" style="margin-top:8px;justify-content:flex-end;align-items:center"><span class="ro">'+t("qFrom")+'</span>'+selHours("qs",18,23,u.quiet_start)+'<span class="ro">—</span><span class="ro">'+t("qTo")+'</span>'+selHours("qe",4,10,u.quiet_end)+'</div><div class="m" style="text-align:right;margin-top:6px">'+t("quietNote")+'</div>')+'</div></div>'+
    '<div class="sw"><span>'+t("digest")+'</span><div class="chips">'+chip("dg","off",t("dgOff"),u.digest_hour==null)+[7,8,9].map(function(x){return chip("dg",x,pad(x)+":00",u.digest_hour===x)}).join("")+'</div></div>'+
    '<div class="sec">'+t("other")+'</div><div class="sw" data-act="fbtoggle" style="cursor:pointer"><span>'+t("fb")+'</span><span class="ro">'+(fbOpen?"▴":"▾")+'</span></div>';
   if(fbOpen)h+='<div class="panel"><div class="m" style="margin-bottom:8px">'+t("fbq")+'</div><textarea class="in" id="f-fb" maxlength="1000">'+esc(fbText)+'</textarea><div class="err" id="fberr"></div><div class="btns" style="margin-top:6px"><button class="b red" data-act="fbsend">'+t("fbSend")+'</button></div></div>';
@@ -288,6 +290,7 @@ document.addEventListener("click",function(e){
   else if(a==="addtime"){syncDraft();var tv=document.getElementById("f-time").value;if(tv&&draft.times.indexOf(tv)<0&&draft.times.length<12){draft.times.push(tv);draft.times.sort()}render()}
   else if(a==="save"){syncDraft();saveDraft()}
   else if(a==="cancelEdit"){go(prevTab)}
+  else if(a==="quiet")act("settings",v==="off"?{quiet_off:true}:{quiet_start:22,quiet_end:7},"tSet");
   else if(a==="fbfilter"){fbFilter=v;render()}
   else if(a==="fbdone")act("fb_done",{id:+id,done:v==="1"},"tSet");
   else if(a==="lang")act("settings",{lang:v},"tSet");
@@ -313,6 +316,9 @@ function saveDraft(){
   var back=d.id!=null?prevTab:"home";
   act("reminder",p,"tSaved",function(){draft=null;tab=back;snoozeOpen=null;delAsk=null;window.scrollTo(0,0)});
 }
+document.addEventListener("change",function(e){
+  if((e.target.id==="qs"||e.target.id==="qe")&&S){var a=document.getElementById("qs"),b=document.getElementById("qe");act("settings",{quiet_start:+a.value,quiet_end:+b.value},"tSet")}
+});
 document.addEventListener("input",function(e){
   if(e.target.id==="f-fb")fbText=e.target.value;
   if(e.target.id==="f-amt"){var pos=e.target.selectionStart,before=e.target.value.length;e.target.value=money(e.target.value);var diff=e.target.value.length-before;try{e.target.setSelectionRange(pos+diff,pos+diff)}catch(x){}}

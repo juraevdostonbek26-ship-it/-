@@ -89,7 +89,7 @@ def get_user(conn, uid):
 
 def set_user(conn, uid, **kw):
     for k in kw:
-        assert k in ("lang", "tz", "repeat_h", "panel_mid", "anchor_mid", "anchor_lang", "digest_hour", "digest_date", "digest_mid")
+        assert k in ("lang", "tz", "repeat_h", "quiet_start", "quiet_end", "panel_mid", "anchor_mid", "anchor_lang", "digest_hour", "digest_date", "digest_mid")
     conn.execute("UPDATE users SET " + ",".join(f"{k}=?" for k in kw) + " WHERE user_id=?", (*kw.values(), uid))
     conn.commit()
 
