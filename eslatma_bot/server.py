@@ -69,6 +69,7 @@ def make_handler(app, secret):
         def do_POST(self):
             prefix = "/webhook/"
             if not self.path.startswith(prefix) or not hmac.compare_digest(self.path[len(prefix):], secret):
+                log("вебхук: нотўғри йўл (рад этилди)")
                 return self._send(404)
             hdr = self.headers.get("X-Telegram-Bot-Api-Secret-Token")
             if hdr is not None and not hmac.compare_digest(hdr, secret):
@@ -84,6 +85,7 @@ def make_handler(app, secret):
             except ValueError:
                 return self._send(400)
             if isinstance(up, dict):
+                log("вебхук: янгилик келди —", "тугма" if "callback_query" in up else "хабар")
                 process_update(app, up)
             self._send(200, b'{"ok": true}')  # Telegram'га ҳар доим 200 (хато бўлса ҳам қайта-қайта юбормасин)
 
@@ -91,9 +93,13 @@ def make_handler(app, secret):
 
 
 def set_webhook(app, base_url, secret):
-    r = app.tg.call("setWebhook", url=f"{base_url.rstrip('/')}/webhook/{secret}", secret_token=secret,
-                    allowed_updates=["message", "callback_query"], drop_pending_updates=False)
-    log("вебхук ўрнатилди" if r.get("ok") else "вебхук ўрнатилмади")
+    try:
+        r = app.tg.call("setWebhook", url=f"{base_url.rstrip('/')}/webhook/{secret}", secret_token=secret,
+                        allowed_updates=["message", "callback_query"], drop_pending_updates=False)
+        log("вебхук ўрнатилди" if r.get("ok") else "вебхук ўрнатилмади: " + str(r.get("description")))
+    except Exception as e:  # Telegram жавоби (масалан 401 — токен нотўғри) сабабини логга чиқарамиз, токенсиз
+        body = getattr(e, "read", lambda: b"")()
+        log("вебхук ўрнатилмади:", type(e).__name__, body[:200].decode("utf-8", "replace") if body else "")
 
 
 def derive_secret(token):
@@ -113,6 +119,11 @@ def build(env=os.environ):
 def main():
     app, secret = build()
     base = os.environ.get("BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL")
+    try:
+        me = app.tg.call("getMe").get("result", {})
+        log("бот танилди: @" + str(me.get("username")))
+    except Exception as e:
+        log("ТОКЕН ЎТМАДИ (getMe хатоси):", type(e).__name__, "— токенни текширинг")
     if base:
         set_webhook(app, base, secret)
     else:
