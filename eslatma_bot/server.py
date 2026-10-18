@@ -96,6 +96,7 @@ def make_handler(app, secret, bot_token=None):
                     raise webapi.ApiError("off", 404)
                 uid = webapi.verify_init_data(self.headers.get("X-Telegram-Init-Data", ""), bot_token)
                 with LOCK:
+                    app.dirty = True
                     if app.limited(uid):
                         raise webapi.ApiError("slow_down", 429)
                     out = webapi.handle(app.db, uid, action, payload if payload is not None else {}, time.time(), app.admin_chat)

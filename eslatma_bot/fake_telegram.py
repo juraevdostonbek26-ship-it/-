@@ -71,6 +71,8 @@ class FakeTelegram:
                     try:
                         res = getattr(fake, "m_" + method)(body)
                         out, code = {"ok": True, "result": res}, 200
+                    except PermissionError as e:
+                        out, code = {"ok": False, "error_code": 403, "description": str(e)}, 403
                     except ValueError as e:
                         (fake.harmless if "not modified" in str(e) else fake.errors).append((method, str(e)))
                         out, code = {"ok": False, "error_code": 400, "description": "Bad Request: " + str(e)}, 400
@@ -136,6 +138,8 @@ class FakeTelegram:
             raise ValueError(e)
 
     def m_sendMessage(self, b):
+        if b.get("chat_id") in getattr(self, "blocked_chats", set()):
+            raise PermissionError("Forbidden: bot was blocked by the user")
         self._check(b)
         c = self.chat(b["chat_id"])
         mid = c["next"]; c["next"] += 1

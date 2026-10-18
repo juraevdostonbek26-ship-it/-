@@ -6,7 +6,7 @@ MAX_REMINDERS = 100
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(user_id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL,
   tz REAL NOT NULL DEFAULT 5, repeat_h REAL NOT NULL DEFAULT 0.016667, quiet_start INTEGER NOT NULL DEFAULT 22,
-  quiet_end INTEGER NOT NULL DEFAULT 7, lang TEXT, panel_mid INTEGER, anchor_mid INTEGER, anchor_lang TEXT, digest_hour INTEGER, digest_date TEXT, digest_mid INTEGER);
+  quiet_end INTEGER NOT NULL DEFAULT 7, lang TEXT, panel_mid INTEGER, anchor_mid INTEGER, anchor_lang TEXT, digest_hour INTEGER, digest_date TEXT, digest_mid INTEGER, blocked INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS reminders(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
   title TEXT NOT NULL, freq TEXT NOT NULL, day INTEGER, date TEXT, hhmm TEXT NOT NULL DEFAULT '09:00',
   lead_days INTEGER NOT NULL DEFAULT 0, amount TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1,
@@ -46,7 +46,7 @@ def connect(path):
         ddl = lambda x: x
         cols = lambda t: {r[1] for r in conn.execute(f"PRAGMA table_info({t})")}
     conn.executescript(ddl(SCHEMA))
-    for t, c, typ in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("users", "digest_hour", "INTEGER"), ("users", "digest_date", "TEXT"), ("users", "digest_mid", "INTEGER"), ("conv", "ts", "REAL NOT NULL DEFAULT 0"), ("occ", "card_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0"), ("feedback", "done", "INTEGER NOT NULL DEFAULT 0")):
+    for t, c, typ in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("users", "digest_hour", "INTEGER"), ("users", "digest_date", "TEXT"), ("users", "digest_mid", "INTEGER"), ("conv", "ts", "REAL NOT NULL DEFAULT 0"), ("occ", "card_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0"), ("feedback", "done", "INTEGER NOT NULL DEFAULT 0"), ("users", "blocked", "INTEGER NOT NULL DEFAULT 0")):
         if c not in cols(t):  # эски базани йўқотмасдан янгилаш
             conn.execute(f"ALTER TABLE {t} ADD COLUMN {c} {ddl(typ)}")
     if not conn.execute("SELECT 1 FROM meta WHERE k='rep_1min'").fetchone():  # 2026-10-17: стандарт такрор 3 соат → 1 дақиқа (барча учун)
@@ -78,7 +78,7 @@ def in_quiet(hour, qs, qe):
 
 # ---------- фойдаланувчи ----------
 def ensure_user(conn, uid, chat_id):
-    conn.execute("INSERT INTO users(user_id, chat_id) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET chat_id=excluded.chat_id", (uid, chat_id))
+    conn.execute("INSERT INTO users(user_id, chat_id) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET chat_id=excluded.chat_id, blocked=0", (uid, chat_id))
     conn.commit()
     return get_user(conn, uid)
 
@@ -89,7 +89,7 @@ def get_user(conn, uid):
 
 def set_user(conn, uid, **kw):
     for k in kw:
-        assert k in ("lang", "tz", "repeat_h", "quiet_start", "quiet_end", "panel_mid", "anchor_mid", "anchor_lang", "digest_hour", "digest_date", "digest_mid")
+        assert k in ("lang", "tz", "repeat_h", "quiet_start", "quiet_end", "blocked", "panel_mid", "anchor_mid", "anchor_lang", "digest_hour", "digest_date", "digest_mid")
     conn.execute("UPDATE users SET " + ",".join(f"{k}=?" for k in kw) + " WHERE user_id=?", (*kw.values(), uid))
     conn.commit()
 
@@ -280,13 +280,30 @@ def pop_due(conn, now):
     rows = conn.execute(
         "SELECT o.id oid, o.user_id, o.due, o.sent_count, o.card_mid, r.title, r.amount, r.hhmm, r.times, r.freq, u.chat_id, u.tz, u.repeat_h, u.quiet_start, u.quiet_end, u.lang "
         "FROM occ o JOIN reminders r ON r.id=o.reminder_id JOIN users u ON u.user_id=o.user_id "
-        "WHERE o.status='pending' AND o.next_ts<=? AND r.active=1", (now,)).fetchall()
+        "WHERE o.status='pending' AND o.next_ts<=? AND r.active=1 AND u.blocked=0", (now,)).fetchall()
     out = []
     for x in rows:
         conn.execute("UPDATE occ SET next_ts=?, sent_count=sent_count+1 WHERE id=?", (next_after_send(x, times_of(x), now), x["oid"]))
         out.append({**dict(x), "days_left": (date.fromisoformat(x["due"]) - local_dt(x, now).date()).days})
     conn.commit()
     return out
+
+
+def next_wake(conn, now):
+    """Бот базага қачон қайтиб қарашини ҳисоблайди (барча иш шу вақтгача кутади): энг яқин эслатма, маҳаллий ярим тун
+    (янги кун учун sync), кунлик хулоса соати, ва камида ҳар 30 дақиқада. Шунда база керак бўлмаса ухлайди (Neon бепул соатлари тежалади)."""
+    cands = [now + 1800]
+    m = conn.execute("SELECT MIN(o.next_ts) FROM occ o JOIN reminders r ON r.id=o.reminder_id JOIN users u ON u.user_id=o.user_id "
+                     "WHERE o.status='pending' AND r.active=1 AND u.blocked=0").fetchone()[0]
+    if m is not None:
+        cands.append(m)
+    for (tz,) in [tuple(r) for r in conn.execute("SELECT DISTINCT tz FROM users").fetchall()]:
+        loc = local_dt({"tz": tz}, now)
+        cands.append(to_ts({"tz": tz}, datetime(loc.year, loc.month, loc.day) + timedelta(days=1)) + 30)
+    if conn.execute("SELECT COUNT(*) FROM users WHERE digest_hour IS NOT NULL AND blocked=0").fetchone()[0]:
+        cands.append(now - now % 3600 + 3600 + 5)
+    conn.commit()  # ўқиш транзакцияси очиқ қолмасин (бошқа жараёнларнинг базани ўзгартиришига тўсқинлик қилмайди)
+    return min(cands)
 
 
 def mark_done(conn, uid, oid):

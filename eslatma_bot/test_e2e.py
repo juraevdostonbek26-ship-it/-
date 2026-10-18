@@ -136,8 +136,8 @@ def test_weekly_daily_end_of_month():
     w.menu(1, UZ["m_add"]); w.say(1, "Dori"); w.click(1, UZ["t_day"]); w.click(1, "20:00"); w.click(1, UZ["time_done"] + " (1)"); w.click(1, UZ["skip"])
     w.menu(1, UZ["m_add"]); w.say(1, "Oylik"); w.click(1, UZ["t_month"]); w.click(1, UZ["month_end"]); w.click(1, "10:00"); w.click(1, UZ["time_done"] + " (1)"); w.click(1, UZ["l0"]); w.click(1, UZ["skip"])
     assert "oxirgi kuni" in w.last(1)
-    w.at(ts(2027, 2, 28, 10, 1)); assert any("Oylik" in x[2] for x in w.bot_msgs(1))  # феврал: 28-си ой охири
     w.at(ts(2026, 11, 6, 15, 1)); assert any("Hisobot" in x[2] for x in w.bot_msgs(1))
+    w.at(ts(2027, 2, 28, 10, 1)); assert any("Oylik" in x[2] for x in w.bot_msgs(1))  # феврал: 28-си ой охири (вақт олдинга юради)
     w.close()
 
 
@@ -432,7 +432,7 @@ def test_feedback_without_admin_is_kept_and_sent_later():
     w.menu(7, UZ["m_fb"]); w.say(7, "salom")
     assert len(L.unsent_feedback(w.db)) == 1
     w.app.admin_chat = 999
-    w.at(w.t + 60)
+    w.at(w.t + 1900)  # бот 30 дақиқагача бир марта қайта уриниб кўради
     assert len(L.unsent_feedback(w.db)) == 0
 
 
@@ -501,3 +501,42 @@ def test_video_button_only_when_link_is_configured_and_is_https():
         assert not w.app.errors
     finally:
         bot.VIDEO_URL.update(old)
+
+
+def test_blocked_user_is_not_nagged_forever_and_resumes_after_writing():
+    from datetime import datetime as _d
+    w = World(); onboard(w)
+    w.menu(1, UZ["m_add"]); w.say(1, "Ijara"); w.click(1, UZ["t_day"]); w.click(1, "11:00"); w.click(1, UZ["time_done"] + " (1)"); w.click(1, UZ["skip"])
+    w.fake.blocked_chats = {1}   # фойдаланувчи ботни блоклади
+    n_before = len(w.bot_msgs(1))
+    w.at(w.t + 3600 * 1.5)       # 11:00 дан кейин: юбориш 403 беради
+    assert L.get_user(w.db, 1)["blocked"] == 1
+    sent = len(w.bot_msgs(1)); calls = []
+    orig = w.app.tg.send
+    w.app.tg.send = lambda *a, **k: calls.append(a) or orig(*a, **k)
+    for i in range(1, 6):        # кейинги дақиқаларда ҳеч қандай уриниш йўқ
+        w.at(w.t + 61)
+    assert calls == [], calls
+    w.app.tg.send = orig
+    w.fake.blocked_chats = set()
+    w.say(1, "/start")           # қайта ёзди — блок олинади
+    assert L.get_user(w.db, 1)["blocked"] == 0
+    assert not w.app.errors
+
+
+def test_idle_bot_does_not_touch_database_between_wake_times():
+    w = World(); onboard(w)
+    w.at(w.t + 10)               # биринчи тўлиқ tick wake вақтини ҳисоблайди
+    assert w.app._wake and w.app._wake > w.t
+    calls = []
+    real = w.db.execute
+    class Spy:
+        def __getattr__(self, k): return getattr(w.db, k)
+        def execute(self, *a, **k): calls.append(a[0][:40]); return real(*a, **k)
+    w.app.db = Spy()
+    w.at(w.t + 120); w.at(w.t + 240)   # кутиш вақти ичида
+    assert calls == [], calls
+    w.app.dirty = True                  # фойдаланувчи ҳаракат қилса — база текширилади
+    w.at(w.t + 10); assert calls
+    w.app.db = w.db
+    assert L.next_wake(w.db, w.t) <= w.t + 1800   # камида ҳар 30 дақиқада

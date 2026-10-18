@@ -264,6 +264,8 @@ class App:
         self.toast = ""
         self.errors = []
         self.verbose = False
+        self.dirty = True   # фойдаланувчи ҳаракат қилди — кейинги tick'да база текширилади
+        self._wake = None   # шу вақтгача база текширилмайди (L.next_wake)
         self.admin_chat = int(os.environ.get("ADMIN_ID", "0") or 0)  # асосчининг Telegram ID'си (махфий эмас, лекин env'да)
 
     def limited(self, uid):
@@ -350,6 +352,7 @@ class App:
         self.new_panel(uid, chat, TXT["uz"]["lang_pick"], kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")]]))
 
     def on_message(self, m):
+        self.dirty = True
         if m["chat"]["type"] != "private" or "from" not in m:
             return
         uid, chat, text = m["from"]["id"], m["chat"]["id"], (m.get("text") or "").strip()
@@ -452,6 +455,7 @@ class App:
             self.new_panel(uid, chat, tr(lg, "later_ok", h=f"{h:g}") if ok else tr(lg, "closed"), kb_home(lg))
 
     def on_callback(self, c):
+        self.dirty = True
         self.toast = ""
         try:
             self._on_callback(c)
@@ -777,6 +781,9 @@ class App:
 
     def tick(self):
         now = self.now()
+        if not self.dirty and self._wake is not None and now < self._wake:
+            return  # кутиш вақти: базага мурожаат йўқ
+        self.dirty = False
         self.deliver_feedback()
         L.sync(self.db, now)
         try:
@@ -789,8 +796,13 @@ class App:
                 if x.get("card_mid"):  # жавобсиз такрорий эслатмалар чатда тўпланмасин: эскиси ўчади
                     self.tg.delete(x["chat_id"], x["card_mid"])
                 L.set_card(self.db, x["oid"], ((r or {}).get("result") or {}).get("message_id"))
+            except urllib.error.HTTPError as e:
+                if e.code in (400, 403):  # фойдаланувчи ботни блоклаган/чат йўқ: ҳар дақиқа уринмаймиз; ёзса қайта ёқилади
+                    L.set_user(self.db, x["user_id"], blocked=1)
+                print("юбориб бўлмади:", e.code, flush=True)
             except Exception as e:
                 print("юбориб бўлмади:", type(e).__name__, flush=True)
+        self._wake = L.next_wake(self.db, now)
 
 
 def poll(app, conn, offset, timeout=25):

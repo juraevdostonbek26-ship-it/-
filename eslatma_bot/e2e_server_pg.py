@@ -4,6 +4,11 @@ sys.path.insert(0, "/home/user/-/eslatma_bot")
 os.environ["NO_PROXY"] = os.environ["no_proxy"] = "127.0.0.1,localhost"
 from fake_telegram import FakeTelegram
 SECRET = "e2e_secret_0123456789_abcdefgh"
+import psycopg  # ҳар ишга туширишда база тоза: «биринчи хабар» ҳақиқатан биринчи бўлсин
+_c = psycopg.connect("postgresql://postgres@127.0.0.1:5544/dojusrv", autocommit=True)
+for _t in ("occ", "reminders", "conv", "feedback", "users", "meta"):
+    _c.execute(f"DROP TABLE IF EXISTS {_t}")
+_c.close()
 fake = FakeTelegram()
 env = dict(os.environ, TELEGRAM_BOT_TOKEN="123:FAKE", TELEGRAM_API=fake.url, WEBHOOK_SECRET=SECRET, BASE_URL="https://doju.test",
            DATABASE_URL="postgresql://postgres@127.0.0.1:5544/dojusrv", PORT="18080", ADMIN_ID="999")
