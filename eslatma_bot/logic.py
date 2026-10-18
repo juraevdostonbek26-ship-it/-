@@ -25,14 +25,30 @@ FEEDBACK_PER_DAY = 5
 
 
 def connect(path):
-    new = not os.path.exists(path)
-    conn = sqlite3.connect(path)
-    conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
-    cols = lambda t: {r[1] for r in conn.execute(f"PRAGMA table_info({t})")}
-    for t, c, ddl in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("users", "digest_hour", "INTEGER"), ("users", "digest_date", "TEXT"), ("users", "digest_mid", "INTEGER"), ("conv", "ts", "REAL NOT NULL DEFAULT 0"), ("occ", "card_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0")):
+    """path — SQLite файли ёки postgres://… манзили (Neon). Тестда TEST_PG_URL бўлса, ўша тоза Postgres базаси ишлатилади."""
+    url = os.environ.get("TEST_PG_URL") or (path if str(path).startswith("postgres") else None)
+    if url:
+        from db import PgConn, to_pg_ddl
+        conn = PgConn(url)
+        if os.environ.get("TEST_PG_URL"):  # ҳар тест тоза базада бошланади (олдинги тестнинг очиқ уланишлари ёпилади)
+            conn.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()")
+            conn.commit()
+            for t in ("occ", "reminders", "conv", "feedback", "users", "meta"):
+                conn.execute(f"DROP TABLE IF EXISTS {t}")
+            conn.commit()
+        ddl = to_pg_ddl
+        cols = lambda t: {r[0] for r in conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name=?", (t,))}
+        new = False
+    else:
+        new = not os.path.exists(path)
+        conn = sqlite3.connect(path, check_same_thread=False)  # сервер бир неча оқимдан, лекин LOCK орқали навбат билан
+        conn.row_factory = sqlite3.Row
+        ddl = lambda x: x
+        cols = lambda t: {r[1] for r in conn.execute(f"PRAGMA table_info({t})")}
+    conn.executescript(ddl(SCHEMA))
+    for t, c, typ in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("users", "digest_hour", "INTEGER"), ("users", "digest_date", "TEXT"), ("users", "digest_mid", "INTEGER"), ("conv", "ts", "REAL NOT NULL DEFAULT 0"), ("occ", "card_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0")):
         if c not in cols(t):  # эски базани йўқотмасдан янгилаш
-            conn.execute(f"ALTER TABLE {t} ADD COLUMN {c} {ddl}")
+            conn.execute(f"ALTER TABLE {t} ADD COLUMN {c} {ddl(typ)}")
     if not conn.execute("SELECT 1 FROM meta WHERE k='rep_1min'").fetchone():  # 2026-10-17: стандарт такрор 3 соат → 1 дақиқа (барча учун)
         conn.execute("UPDATE users SET repeat_h=0.016667 WHERE repeat_h=3")
         conn.execute("INSERT INTO meta VALUES('rep_1min','1')")
@@ -120,7 +136,7 @@ def get_conv(conn, uid, now=None, ttl=1800):
 
 
 def set_conv(conn, uid, step, data, now=None):
-    conn.execute("INSERT OR REPLACE INTO conv(user_id, step, data, ts) VALUES(?,?,?,?)", (uid, step, json.dumps(data, ensure_ascii=False), now if now is not None else time.time()))
+    conn.execute("INSERT INTO conv(user_id, step, data, ts) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET step=excluded.step, data=excluded.data, ts=excluded.ts", (uid, step, json.dumps(data, ensure_ascii=False), now if now is not None else time.time()))
     conn.commit()
 
 
@@ -238,7 +254,7 @@ def sync(conn, now):
                 if conn.execute("SELECT 1 FROM occ WHERE reminder_id=? AND due=?", (r["id"], due.isoformat())).fetchone():
                     continue
                 ts = first_fire(u, r, due, now, r["created_ts"])
-                conn.execute("INSERT OR IGNORE INTO occ(user_id,reminder_id,due,status,next_ts) VALUES(?,?,?,?,?)",
+                conn.execute("INSERT INTO occ(user_id,reminder_id,due,status,next_ts) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING",
                              (u["user_id"], r["id"], due.isoformat(), "pending" if ts is not None else "missed", ts if ts is not None else now))
     cutoff = (datetime.fromtimestamp(now, timezone.utc).date() - timedelta(days=8)).isoformat()
     conn.execute("UPDATE occ SET status='missed' WHERE status='pending' AND due < ?", (cutoff,))

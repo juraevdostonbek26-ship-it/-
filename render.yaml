@@ -1,0 +1,20 @@
+# DOJU Эслатма Котиби — Render созламалари (FASO билан аралашмайди). Махфий қийматлар (sync: false) Render'да қўлда киритилади.
+services:
+  - type: web
+    name: doju-eslatma
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: eslatma_bot
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_ID
+        sync: false

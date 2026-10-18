@@ -248,6 +248,8 @@ def test_limit_and_parsers():
 
 
 def test_old_database_is_migrated():
+    if os.environ.get("TEST_PG_URL"):
+        return  # эски SQLite файлни янгилаш — фақат SQLite учун
     path = os.path.join(tempfile.mkdtemp(), "old.db")
     c = sqlite3.connect(path)
     c.executescript("""CREATE TABLE users(user_id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL, tz REAL NOT NULL DEFAULT 5, repeat_h REAL NOT NULL DEFAULT 3, quiet_start INTEGER NOT NULL DEFAULT 22, quiet_end INTEGER NOT NULL DEFAULT 7);

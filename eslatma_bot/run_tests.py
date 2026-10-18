@@ -1,9 +1,9 @@
 """Ҳамма тестни ишга туширади: python3 run_tests.py"""
 import sys, traceback
-import test_bot, test_e2e
+import test_bot, test_e2e, test_server
 
 bad = n = 0
-for mod in (test_bot, test_e2e):
+for mod in (test_bot, test_e2e, test_server):
     for name in sorted(dir(mod)):
         if name.startswith("test_"):
             n += 1

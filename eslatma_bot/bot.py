@@ -753,7 +753,7 @@ def poll(app, conn, offset, timeout=25):
             fr = traceback.extract_tb(e.__traceback__)[-1]
             app.errors.append(f"{type(e).__name__}: {e} ({fr.name}:{fr.lineno})")
             print("ИШЛОВ ХАТОСИ:", type(e).__name__, e, "— қатор", fr.lineno, fr.name, flush=True)
-    conn.execute("INSERT OR REPLACE INTO meta VALUES('offset',?)", (str(offset),))
+    conn.execute("INSERT INTO meta(k,v) VALUES('offset',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (str(offset),))
     conn.commit()
     app.tick()
     return offset

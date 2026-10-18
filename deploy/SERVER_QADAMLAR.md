@@ -1,26 +1,27 @@
-# DOJU Эслатма Котиби — сервер қадамлари
+# DOJU Эслатма Котиби — сервер қадамлари (код тайёр)
 
-Ҳамма калит (токен, база манзили) фақат `KALITLAR.txt` га ва Render'нинг Environment бўлимига ёзилади. Чатга ЁЗМАНГ.
-FASO билан аралашмаслиги учун: алоҳида Neon лойиҳа, алоҳида Render хизмат, алоҳида токен.
+Калитлар фақат `KALITLAR.txt` нинг DOJU бўлимида ва Render'нинг махфий майдонларида. Чатга ЁЗМАНГ.
 
-## ҲОЗИР қилиш мумкин (мен кодни ёзаётганда)
-1. **Neon** (neon.tech): Create project → номи `doju-eslatma`, регион Frankfurt (FASO билан бир хил). Яратилгач «Connection string» (postgresql://… билан бошланади) ни нусхалаб `KALITLAR.txt` га `NEON_DOJU=` деб ёзинг. Фақат шу. FASO базасига тегманг.
-2. **Янги токен:** @BotFather → `/revoke` → `@eslatma_Kotibi_bot` → янги токенни `KALITLAR.txt` га `DOJU_BOT_TOKEN=` деб ёзинг. Эски токен шу заҳоти ўчади (компьютердаги ботни қайта ишга туширишда янги токен керак бўлади).
-3. **Render:** GitHub ҳисобингизни репога (`juraevdostonbek26-ship-it/-`) рухсат берилганини текширинг (Render → Account → GitHub). Бошқа ҳеч нарса қилманг.
+## Олдиндан керак (сизда)
+- `NEON_DOJU=` — Neon уланиш манзили (тайёр)
+- `DOJU_BOT_TOKEN=` — BotFather'дан янги токен (`/revoke` → `@eslatma_Kotibi_bot`)
+- `ADMIN_ID=5421990729`
 
-## Мен «код тайёр» деганимдан кейин
-4. Render → New → **Web Service** → репо `-` → branch `claude/happy-carson-61yqi1`.
-   - Name: `doju-eslatma` · Region: Frankfurt · Plan: **Free**
-   - Root Directory: `eslatma_bot`
-   - Build: `pip install -r requirements.txt` · Start: `python server.py` (аниқ буйруқни ўша пайт тасдиқлайман)
-5. Render → Environment (қийматлар сизда, чатга ёзилмайди):
-   - `TELEGRAM_BOT_TOKEN` (иккинчи қадамдаги)
-   - `DATABASE_URL` (Neon'нинг)
-   - `ADMIN_ID` (Telegram ID'нгиз)
-   - `WEBHOOK_SECRET` (узун тасодифий матн; мен ясаб бераман)
-   - `BASE_URL` = Render берган манзил (`https://doju-eslatma.onrender.com`)
-6. **cron-job.org:** янги вазифа `DOJU bot` → URL `…/healthz`, ҳар 5 дақиқада, зона Asia/Tashkent, хатода почтага хабар. (Render Free 15 дақиқа сўровсиз ухлайди, шу уни уйғотиб туради.)
-7. **BotFather → Bot Settings → Menu Button** → URL `…/app/` → тугма номи «Открыть» ўрнига «DOJU». 
-8. Текшириш: ботга `/start`, эслатма қўшинг, «Открыть» ни босинг: бир хил кўриниши керак.
+## Render (Blueprint — битта тугма билан)
+1. dashboard.render.com → **New +** → **Blueprint**.
+2. Репо: `juraevdostonbek26-ship-it/-` (GitHub рухсат сўраса, рухсат беринг). **Branch: `claude/happy-carson-61yqi1`**.
+3. Render `render.yaml` ни ўқиб `doju-eslatma` хизматини кўрсатади (Free, Frankfurt). Сўралган 3 та махфий майдонга **ўз файлингиздан** қийматларни ёпиштиринг:
+   - `TELEGRAM_BOT_TOKEN` = `DOJU_BOT_TOKEN` қиймати
+   - `DATABASE_URL` = `NEON_DOJU` қиймати (бутун `postgresql://…` манзил)
+   - `ADMIN_ID` = `5421990729`
+4. **Apply / Deploy**. 3–5 дақиқа кутинг. Ўртасида «Live» ёзуви чиқади.
+5. Текшириш: Render берган манзилнинг охирига `/healthz` ёзиб очинг (масалан `https://doju-eslatma.onrender.com/healthz`). `{"ok": true}` чиқиши керак.
+6. Telegram'да ботга `/start`. Жавоб келса, ишлаяпти.
 
-Керак бўлса айтинг: ҳар қадамни скриншот билан бирга текшираман.
+## Уйғотувчи (cron-job.org)
+Render Free 15 дақиқа сўров бўлмаса ухлайди. Шунинг учун:
+- cron-job.org → **Create cronjob** → номи `DOJU bot` → URL: `https://<хизмат-манзили>/healthz` → ҳар **5 дақиқада** → Time zone `Asia/Tashkent` → «Notify on failure» ёқинг → Create.
+FASO вазифасига тегманг, алоҳида янги вазифа очинг.
+
+## Агар ишламаса
+Render → хизмат → **Logs** бўлимидаги охирги қаторлар скриншотини юборинг (махфий қийматларни ёпиб).

@@ -87,6 +87,10 @@ class FakeTelegram:
     def m_getMe(self, b):
         return {"id": 1, "is_bot": True, "username": "fake_bot"}
 
+    def m_setWebhook(self, b):
+        self.webhook = b
+        return True
+
     def m_getUpdates(self, b):
         off = b.get("offset") or 0
         return [u for u in self.updates if u["update_id"] >= off]
