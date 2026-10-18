@@ -208,3 +208,15 @@ def test_quiet_hours_settable_and_validated():
     W.handle(db, 1, "settings", {"quiet_off": True}, NOW)
     u = dict(L.get_user(db, 1))
     assert L.next_after_send(u, ["09:00"], ts(2026, 11, 2, 21, 30)) == ts(2026, 11, 2, 22, 30)  # тинч соат ўчиқ — кечаси ҳам такрор
+
+
+def test_state_contains_video_link_for_user_language_only():
+    db = fresh(); old = dict(W.VIDEO)
+    try:
+        W.VIDEO.update(uz="https://youtu.be/UZ", ru="https://youtu.be/RU")
+        assert W.handle(db, 1, "state", {}, NOW)["video"] == "https://youtu.be/UZ"
+        assert W.handle(db, 1, "settings", {"lang": "ru"}, NOW)["video"] == "https://youtu.be/RU"
+        W.VIDEO.update(uz="", ru="")
+        assert W.handle(db, 1, "state", {}, NOW)["video"] == ""
+    finally:
+        W.VIDEO.update(old)

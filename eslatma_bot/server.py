@@ -177,6 +177,11 @@ def build(env=os.environ):
 
 def main():
     app, secret = build()
+    one = os.environ.get("VIDEO_URL", "")
+    for lg in ("uz", "ru"):  # VIDEO_URL_UZ / VIDEO_URL_RU (бўлмаса умумий VIDEO_URL); фақат https
+        u = os.environ.get(f"VIDEO_URL_{lg.upper()}") or one
+        bot.VIDEO_URL[lg] = u if u.startswith("https://") else ""
+    webapi.VIDEO.update(bot.VIDEO_URL)
     base = os.environ.get("BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL")
     try:
         me = app.tg.call("getMe").get("result", {})

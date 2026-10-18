@@ -108,7 +108,7 @@ nav button.on{color:var(--text);background:var(--surface2)}
 var TG=window.Telegram&&window.Telegram.WebApp, INIT=(TG&&TG.initData)||"";
 try{if(TG){TG.ready();TG.expand();TG.setHeaderColor&&TG.setHeaderColor("#0e2430");TG.setBackgroundColor&&TG.setBackgroundColor("#0e2430")}}catch(e){}
 var T={
-uz:{inbox:"Xabarlar",inboxHead:"Foydalanuvchilar xabarlari",fbNew:"Yangi",fbDoneF:"Hal qilingan",fbAllF:"Hammasi",fbMark:"✅ Hal qilindi",fbUndo:"↩ Qaytarish",fbNone:"Bu yerda xabar yo'q ✨",fbAnon:"Yozgan odam ko'rsatilmaydi. Faqat siz ko'rasiz.",sub:"Eslatma Kotibi",today:"Bugun",all:"Hammasi",new:"Yangi",settings:"Sozlamalar",over:"Muddati o'tgan",week:"Shu hafta",soon:"Yaqinda",
+uz:{video:"🎬 Video qo'llanma",inbox:"Xabarlar",inboxHead:"Foydalanuvchilar xabarlari",fbNew:"Yangi",fbDoneF:"Hal qilingan",fbAllF:"Hammasi",fbMark:"✅ Hal qilindi",fbUndo:"↩ Qaytarish",fbNone:"Bu yerda xabar yo'q ✨",fbAnon:"Yozgan odam ko'rsatilmaydi. Faqat siz ko'rasiz.",sub:"Eslatma Kotibi",today:"Bugun",all:"Hammasi",new:"Yangi",settings:"Sozlamalar",over:"Muddati o'tgan",week:"Shu hafta",soon:"Yaqinda",
  done:"✅ Bajarildi",later:"⏰ Keyinroq",m15:"15 daqiqa",m60:"1 soat",m180:"3 soat",tom:"Ertaga",allhead:"Hammasi ({n})",emptyAll:"Hozircha eslatma yo'q.<br>«Yangi» tabidan birinchisini qo'shing.",
  emptyToday:"Bugun hammasi bajarilgan ✨",del:"🗑 O'chirish",yesDel:"Ha, o'chirilsin",cancel:"Bekor qilish",editTitle:"✏️ Tahrirlash",qTitle:"Nimani eslatay?",ph:"masalan: Ijara to'lovi",
  when:"Qachon?",once:"Bir marta",monthly:"Har oy",weekly:"Har hafta",daily:"Har kuni",dom:"Oyning kuni",end:"🔚 Oy oxiri",wdl:"Hafta kuni",date:"Sana",times:"Soatlar (bir nechtasini tanlash mumkin)",
@@ -124,7 +124,7 @@ uz:{inbox:"Xabarlar",inboxHead:"Foydalanuvchilar xabarlari",fbNew:"Yangi",fbDone
  openTg:"Bu oyna Telegram ichida ishlaydi. Botdagi «Veb oyna» tugmasini bosing.",
  wd:["Du","Se","Ch","Pa","Ju","Sh","Ya"],wdl2:["har dushanba","har seshanba","har chorshanba","har payshanba","har juma","har shanba","har yakshanba"],
  days0:"bugun",daysN:"{n} kun o'tgan",inN:"{n} kundan keyin",tomorrow:"ertaga"},
-ru:{inbox:"Сообщения",inboxHead:"Сообщения пользователей",fbNew:"Новые",fbDoneF:"Решённые",fbAllF:"Все",fbMark:"✅ Решено",fbUndo:"↩ Вернуть",fbNone:"Здесь сообщений нет ✨",fbAnon:"Автор не показывается. Видите только вы.",sub:"Секретарь-напоминатель",today:"Сегодня",all:"Все",new:"Новое",settings:"Настройки",over:"Просрочено",week:"На неделе",soon:"Скоро",
+ru:{video:"🎬 Видео-инструкция",inbox:"Сообщения",inboxHead:"Сообщения пользователей",fbNew:"Новые",fbDoneF:"Решённые",fbAllF:"Все",fbMark:"✅ Решено",fbUndo:"↩ Вернуть",fbNone:"Здесь сообщений нет ✨",fbAnon:"Автор не показывается. Видите только вы.",sub:"Секретарь-напоминатель",today:"Сегодня",all:"Все",new:"Новое",settings:"Настройки",over:"Просрочено",week:"На неделе",soon:"Скоро",
  done:"✅ Выполнено",later:"⏰ Позже",m15:"15 минут",m60:"1 час",m180:"3 часа",tom:"Завтра",allhead:"Все ({n})",emptyAll:"Напоминаний пока нет.<br>Добавьте первое во вкладке «Новое».",
  emptyToday:"На сегодня всё выполнено ✨",del:"🗑 Удалить",yesDel:"Да, удалить",cancel:"Отмена",editTitle:"✏️ Редактирование",qTitle:"О чём напомнить?",ph:"например: Аренда офиса",
  when:"Когда?",once:"Один раз",monthly:"Каждый месяц",weekly:"Каждую неделю",daily:"Каждый день",dom:"День месяца",end:"🔚 Конец месяца",wdl:"День недели",date:"Дата",times:"Время (можно несколько)",
@@ -291,6 +291,7 @@ document.addEventListener("click",function(e){
   else if(a==="save"){syncDraft();saveDraft()}
   else if(a==="cancelEdit"){go(prevTab)}
   else if(a==="quiet")act("settings",v==="off"?{quiet_off:true}:{quiet_start:22,quiet_end:7},"tSet");
+  else if(a==="video"){try{if(TG&&TG.openLink)TG.openLink(S.video);else window.open(S.video,"_blank","noopener")}catch(x){window.open(S.video,"_blank","noopener")}}
   else if(a==="fbfilter"){fbFilter=v;render()}
   else if(a==="fbdone")act("fb_done",{id:+id,done:v==="1"},"tSet");
   else if(a==="lang")act("settings",{lang:v},"tSet");

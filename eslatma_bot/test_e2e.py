@@ -480,3 +480,22 @@ def test_sound_and_background_buttons_send_files_and_instructions():
         w.click(7, UZ["sound_btn"]); assert not w.app.errors
     finally:
         bot.ASSET_BASE, bot.BG_LINK = old
+
+
+def test_video_button_only_when_link_is_configured_and_is_https():
+    w = World(); old = dict(bot.VIDEO_URL)
+    try:
+        bot.VIDEO_URL.update(uz="", ru="")
+        w.say(7, "/start"); w.click(7, "🇺🇿 UZB")
+        assert not any(x[1] == UZ["m_video"] for x in w.fake.buttons(7))
+        bot.VIDEO_URL.update(uz="https://youtu.be/AAAA", ru="https://youtu.be/BBBB")
+        w.say(7, "/start")
+        m = [m for m in w.fake.chats[7]["msgs"].values() if m["markup"] and not m["deleted"]][-1]["markup"]["inline_keyboard"]
+        btns = [b for r in m for b in r if "url" in b]
+        assert btns and btns[0]["url"] == "https://youtu.be/AAAA" and btns[0]["text"] == UZ["m_video"]
+        w.menu(7, UZ["m_set"]); w.click(7, "🇷🇺 РУС"); w.click(7, RU["btn_home"])
+        m = [m for m in w.fake.chats[7]["msgs"].values() if m["markup"] and not m["deleted"]][-1]["markup"]["inline_keyboard"]
+        assert [b["url"] for r in m for b in r if "url" in b] == ["https://youtu.be/BBBB"]  # рус тилида — рус видеоси
+        assert not w.app.errors
+    finally:
+        bot.VIDEO_URL.update(old)

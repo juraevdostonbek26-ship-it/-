@@ -151,6 +151,7 @@ def kb_home(lg):
 
 ASSET_BASE = ""  # сервер ишга тушганда https://… қўйилади: овоз ва фон файллари шу манзилдан юборилади
 BG_LINK = os.environ.get("BG_LINK", "")  # Telegram фон ҳаволаси (t.me/bg/…): бир босишда DOJU фонини қўллайди
+VIDEO_URL = {"uz": "", "ru": ""}  # YouTube видео қўлланма ҳаволалари (сервер муҳитидан); бўш бўлса тугма чиқмайди
 WEBAPP_URL = ""  # сервер ишга тушганда https://…/app/ қўйилади; бўш бўлса веб тугмаси чиқмайди
 
 
@@ -158,6 +159,8 @@ def home_markup(lg):
     m = kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")], [(tr(lg, "bg_btn"), "bg"), (tr(lg, "sound_btn"), "snd")], [(tr(lg, "m_fb"), "go:fb")]])
     if WEBAPP_URL:
         m["inline_keyboard"].append([{"text": tr(lg, "m_web"), "web_app": {"url": WEBAPP_URL}}])
+    if VIDEO_URL.get(lg):
+        m["inline_keyboard"].append([{"text": tr(lg, "m_video"), "url": VIDEO_URL[lg]}])
     return m
 
 

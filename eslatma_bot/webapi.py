@@ -15,6 +15,7 @@ DIGEST_HOURS = (None, 7, 8, 9)
 TZ_CHOICES = (3.0, 5.0)
 REPEAT_CHOICES = (0.0, 0.016667, 1.0, 3.0, 6.0)
 SOON_DAYS = 14
+VIDEO = {"uz": "", "ru": ""}  # видео қўлланма ҳаволалари (server.py тўлдиради)
 
 
 class ApiError(Exception):
@@ -91,7 +92,7 @@ def get_state(conn, uid, now, admin_id=0):
     out = {"now": now, "today": today.isoformat(), "user": {"lang": u["lang"], "tz": u["tz"], "repeat_h": u["repeat_h"], "digest_hour": u["digest_hour"],
                                                               "quiet_start": u["quiet_start"], "quiet_end": u["quiet_end"]},
             "pending": pending, "soon": soon, "reminders": [_rem(r) for r in rows], "max": L.MAX_REMINDERS,
-            "admin": bool(admin_id) and uid == admin_id}
+            "admin": bool(admin_id) and uid == admin_id, "video": VIDEO.get(u["lang"], "")}
     if out["admin"]:  # фақат асосчи: фойдаланувчилар ёзган хатлар (юборувчи номисиз)
         out["feedback"] = [{"id": f["id"], "text": f["text"], "ts": f["ts"], "done": bool(f["done"])}
                            for f in conn.execute("SELECT id, text, ts, done FROM feedback ORDER BY id DESC LIMIT 300").fetchall()]
