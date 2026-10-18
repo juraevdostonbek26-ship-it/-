@@ -11,7 +11,7 @@
 - **ZIP:** https://github.com/juraevdostonbek26-ship-it/-/archive/refs/heads/claude/happy-carson-61yqi1.zip → `eslatma_bot/ishga_tushir.bat` (токенни ойнага ёпиштиради, файлга ёзилмайди).
 - ⚠️ **Токен:** чатга 2 та токен тушган. Ҳар янги чатда эслат: `/revoke`, янгисини чатга ёзма.
 - **Dostonbek учун хабар:** «Айтган нарсани ўтказиб юборма» — ҳар хабарни аввал TALABLAR.md га қўш, «тайёр»дан олдин бошидан охиригача текшир.
-- **2-чат (2026-10-17):** Telegram'да бот ишлаяпти (меню чиқди, скриншот). Янги талаблар `TALABLAR.md` «Ж» бўлими (J4–J11): тўхтамайдиган эслатма, фон/овоз намунаси, аватар, сервер+уйғотиш, «Асосчига хато ёзиш» тугмаси. Тайёр: «📩 Асосчига ёзиш», 1 дақиқа такрор (41 → 39 тест ўтади). Вариантлар `dizayn/` да (аватар 1–5, фон 1–5): Dostonbek танлайди. Хостинг коди тайёр (server.py, db.py, render.yaml): `deploy/SERVER_QADAMLAR.md` бўйича Dostonbek Render'да Blueprint очади. Кутилмоқда: DOJU токени + Neon манзили `KALITLAR.txt` да, Render рухсати.
+- **2-чат (2026-10-17):** Telegram'да бот ишлаяпти (меню чиқди, скриншот). Янги талаблар `TALABLAR.md` «Ж» бўлими (J4–J11): тўхтамайдиган эслатма, фон/овоз намунаси, аватар, сервер+уйғотиш, «Асосчига хато ёзиш» тугмаси. Тайёр: «📩 Асосчига ёзиш», 1 дақиқа такрор (41 → 39 тест ўтади). Вариантлар `dizayn/` да (аватар 1–5, фон 1–5): Dostonbek танлайди. Хостинг коди тайёр (server.py, db.py, render.yaml): `deploy/SERVER_QADAMLAR.md` бўйича Dostonbek Render'да Blueprint очади. Хостинг ишга тушди (Render `doju-eslatma`). Кейинги: cron-job.org уйғотувчи, Mini App, Neon чегарасини кузатиш.
 ## 1. Лойиҳа нима ҳақида
 - Мақсад: Dostonbek (Финансовий директор) ва ҳамма фойдаланувчилар тўлов/ойлик/солиқ ва шунга ўхшашларни унутмасин; кейин бошқа молиявий ишларни агентлар билан тизимлаштириш.
 - Бот: `@eslatma_Kotibi_bot` (Telegram). Ҳар ким ўз эслатмасини қўшади; маълумотлар аралашмайди.
@@ -67,7 +67,7 @@
 | Файл | Ичида нима бор | Ҳолати |
 |---|---|---|
 | dizayn/ | avatar_doju.png, fon_doju_tungi/kunduzgi.png, karta_doju.png, eslatma_melodiya.wav (бренд DOJU) (тасдиқ кутилмоқда) | 🧪 |
-| eslatma_bot/server.py, db.py, requirements.txt, ../render.yaml | Render сервери: вебхук + таймер, Postgres (Neon) уловчиси, Render созламалари | 🧪 ҳали деплой қилинмаган |
+| eslatma_bot/server.py, db.py, requirements.txt, ../render.yaml | Render сервери: вебхук + таймер, Postgres (Neon) уловчиси, Render созламалари | ✅ Render'да ишлаяпти (2026-10-18), /start жавоб беради |
 | eslatma_bot/logic.py | SQLite (+эски базани янгилаш), жадвал, такрор/кейинрок алгоритми | ✅ |
 | eslatma_bot/bot.py | Telegram: тил, битта хабарли оқим, календарь, соатлар, тугмалар | ✅ |
 | eslatma_bot/texts.py | UZ (лотин) ва RU матнлар (калитлар бир хил, тест текширади) | ✅ |
