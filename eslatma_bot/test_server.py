@@ -224,3 +224,10 @@ def test_assets_served_only_from_whitelist():
             assert req(base + bad)[0] == 404, bad
     finally:
         srv.shutdown(); fake.close()
+
+
+def test_video_links_defaults_env_override_and_https_only():
+    assert server.video_links({}) == {"uz": "https://t.me/doju_eslatma/3", "ru": "https://t.me/doju_eslatma/4"}
+    assert server.video_links({"VIDEO_URL_UZ": "https://youtu.be/UZ"})["uz"] == "https://youtu.be/UZ"
+    assert server.video_links({"VIDEO_URL": "https://example.com/v"}) == {"uz": "https://example.com/v", "ru": "https://example.com/v"}
+    assert server.video_links({"VIDEO_URL_UZ": "javascript:alert(1)", "VIDEO_URL_RU": "http://insecure.example"}) == {"uz": "", "ru": ""}  # хавфли/нохавфсиз ҳаволалар рад этилади

@@ -156,6 +156,19 @@ def derive_secret(token):
     return hmac.new(token.encode(), b"doju-webhook", "sha256").hexdigest()[:48]
 
 
+DEFAULT_VIDEO = {"uz": "https://t.me/doju_eslatma/3", "ru": "https://t.me/doju_eslatma/4"}  # канал постлари (оммавий ҳавола, махфий эмас)
+
+
+def video_links(env):
+    """Видео қўлланма ҳаволалари: env (VIDEO_URL_UZ/RU ёки умумий VIDEO_URL) устун, бўлмаса канал постлари; фақат https."""
+    one = env.get("VIDEO_URL", "")
+    out = {}
+    for lg in ("uz", "ru"):
+        u = env.get(f"VIDEO_URL_{lg.upper()}") or one or DEFAULT_VIDEO[lg]
+        out[lg] = u if u.startswith("https://") else ""
+    return out
+
+
 def set_menu_button(app, url):
     """Чатдаги пастки «Открыть» тугмаси веб ойнани очади. Хато бўлса бот ишлашда давом этади."""
     try:
@@ -177,10 +190,7 @@ def build(env=os.environ):
 
 def main():
     app, secret = build()
-    one = os.environ.get("VIDEO_URL", "")
-    for lg in ("uz", "ru"):  # VIDEO_URL_UZ / VIDEO_URL_RU (бўлмаса умумий VIDEO_URL); фақат https
-        u = os.environ.get(f"VIDEO_URL_{lg.upper()}") or one
-        bot.VIDEO_URL[lg] = u if u.startswith("https://") else ""
+    bot.VIDEO_URL.update(video_links(os.environ))
     webapi.VIDEO.update(bot.VIDEO_URL)
     base = os.environ.get("BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL")
     try:
