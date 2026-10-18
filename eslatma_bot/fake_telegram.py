@@ -40,6 +40,10 @@ def markup_error(mk, edit=False):
             total += 1
             if not b.get("text"):
                 return "button text empty"
+            if "web_app" in b:  # Mini App тугмаси: https манзил керак
+                if not str(b["web_app"].get("url", "")).startswith("https://"):
+                    return "BUTTON_URL_INVALID"
+                continue
             if len(b.get("callback_data", "").encode()) > 64 or "callback_data" not in b:
                 return "BUTTON_DATA_INVALID"
     return "too many buttons" if total > 100 else None
@@ -86,6 +90,10 @@ class FakeTelegram:
 
     def m_getMe(self, b):
         return {"id": 1, "is_bot": True, "username": "fake_bot"}
+
+    def m_setChatMenuButton(self, b):
+        self.menu_button = b
+        return True
 
     def m_setWebhook(self, b):
         self.webhook = b
@@ -169,7 +177,7 @@ class FakeTelegram:
 
     def buttons(self, uid):
         with self.lock:
-            return [(mid, b["text"], b["callback_data"]) for mid, m in sorted(self.chat(uid)["msgs"].items())
+            return [(mid, b["text"], b.get("callback_data", "web_app")) for mid, m in sorted(self.chat(uid)["msgs"].items())
                     if not m["deleted"] and m["markup"] for row in m["markup"]["inline_keyboard"] for b in row]
 
     def click(self, uid, label):

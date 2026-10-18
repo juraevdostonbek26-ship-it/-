@@ -142,8 +142,14 @@ def kb_home(lg):
     return kb([home_row(lg)])
 
 
+WEBAPP_URL = ""  # сервер ишга тушганда https://…/app/ қўйилади; бўш бўлса веб тугмаси чиқмайди
+
+
 def home_markup(lg):
-    return kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")], [(tr(lg, "m_fb"), "go:fb")]])
+    m = kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")], [(tr(lg, "m_fb"), "go:fb")]])
+    if WEBAPP_URL:
+        m["inline_keyboard"].append([{"text": tr(lg, "m_web"), "web_app": {"url": WEBAPP_URL}}])
+    return m
 
 
 ORDER = ("amount", "lead", "times", "day", "date", "freq", "title")

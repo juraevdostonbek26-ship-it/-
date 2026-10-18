@@ -6,10 +6,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import bot
 import logic as L
+import webapi
 
 LOCK = threading.RLock()  # битта уланиш: хабар ва таймер навбат билан ишлайди
 TICK_SECONDS = 15
 MAX_BODY = 1_000_000
+MAX_API_BODY = 100_000
+WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp")
+CSP = ("default-src 'none'; script-src 'unsafe-inline' https://telegram.org; style-src 'unsafe-inline' https://fonts.googleapis.com; "
+       "font-src https://fonts.gstatic.com; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'")
 SECRET_RE = re.compile(r"^[A-Za-z0-9_-]{16,200}$")
 
 
@@ -41,16 +46,18 @@ def tick_loop(app, stop):
         stop.wait(TICK_SECONDS)
 
 
-def make_handler(app, secret):
+def make_handler(app, secret, bot_token=None):
     class H(BaseHTTPRequestHandler):
         server_version = "DOJU"
 
         def log_message(self, fmt, *args):  # йўл (ичида махфий) логга ёзилмайди
             pass
 
-        def _send(self, code, body=b"", ctype="application/json"):
+        def _send(self, code, body=b"", ctype="application/json", extra=None):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
+            for k, v in (extra or {}).items():
+                self.send_header(k, v)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if self.command != "HEAD":
@@ -64,9 +71,45 @@ def make_handler(app, secret):
                 return self._send(200, b'{"ok": true}')
             if self.path == "/":
                 return self._send(200, "DOJU Eslatma Kotibi".encode(), "text/plain; charset=utf-8")
+            path = self.path.split("?")[0]
+            if path in ("/app", "/app/"):
+                try:
+                    with open(os.path.join(WEB_DIR, "index.html"), "rb") as f:
+                        return self._send(200, f.read(), "text/html; charset=utf-8", {"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
+                except OSError:
+                    return self._send(404)
+            if path == "/app/api/state":
+                return self._api("state", None)
             self._send(404)
 
+        def _api(self, action, payload):
+            """Mini App: имзо текширилади, ҳар қандай амал фақат шу фойдаланувчи маълумотига тегади."""
+            hdr = {"Cache-Control": "no-store"}
+            try:
+                if not bot_token:
+                    raise webapi.ApiError("off", 404)
+                uid = webapi.verify_init_data(self.headers.get("X-Telegram-Init-Data", ""), bot_token)
+                with LOCK:
+                    if app.limited(uid):
+                        raise webapi.ApiError("slow_down", 429)
+                    out = webapi.handle(app.db, uid, action, payload if payload is not None else {}, time.time())
+                self._send(200, json.dumps(out, ensure_ascii=False).encode(), extra=hdr)
+            except webapi.ApiError as e:
+                self._send(e.status, json.dumps({"error": e.code}).encode(), extra=hdr)
+            except Exception as e:
+                log("API хатоси:", type(e).__name__)
+                self._send(500, b'{"error": "server"}', extra=hdr)
+
         def do_POST(self):
+            if self.path.startswith("/app/api/"):
+                try:
+                    n = int(self.headers.get("Content-Length", "0"))
+                    body = json.loads(self.rfile.read(n)) if 0 < n <= MAX_API_BODY else None
+                except ValueError:
+                    body = None
+                if body is None:
+                    return self._send(400, b'{"error": "bad_request"}')
+                return self._api(self.path[len("/app/api/"):].split("?")[0], body)
             prefix = "/webhook/"
             if not self.path.startswith(prefix) or not hmac.compare_digest(self.path[len(prefix):], secret):
                 log("вебхук: нотўғри йўл (рад этилди)")
@@ -107,12 +150,22 @@ def derive_secret(token):
     return hmac.new(token.encode(), b"doju-webhook", "sha256").hexdigest()[:48]
 
 
+def set_menu_button(app, url):
+    """Чатдаги пастки «Открыть» тугмаси веб ойнани очади. Хато бўлса бот ишлашда давом этади."""
+    try:
+        r = app.tg.call("setChatMenuButton", menu_button={"type": "web_app", "text": "DOJU", "web_app": {"url": url}})
+        log("меню тугмаси ўрнатилди" if r.get("ok") else "меню тугмаси ўрнатилмади")
+    except Exception as e:
+        log("меню тугмаси ўрнатилмади:", type(e).__name__)
+
+
 def build(env=os.environ):
     secret = env.get("WEBHOOK_SECRET") or derive_secret(env["TELEGRAM_BOT_TOKEN"])
     if not SECRET_RE.match(secret):
         raise SystemExit("WEBHOOK_SECRET нотўғри: 16–200 та ҳарф/рақам/_/- бўлиши керак (ёки бутунлай бўш қолдиринг).")
     conn = L.connect(env.get("DATABASE_URL") or env.get("DB_PATH") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db"))
     app = bot.App(conn, bot.Tg(env["TELEGRAM_BOT_TOKEN"]))
+    app.token = env["TELEGRAM_BOT_TOKEN"]
     return app, secret
 
 
@@ -125,13 +178,15 @@ def main():
     except Exception as e:
         log("ТОКЕН ЎТМАДИ (getMe хатоси):", type(e).__name__, "— токенни текширинг")
     if base:
+        bot.WEBAPP_URL = base.rstrip("/") + "/app/"
         set_webhook(app, base, secret)
+        set_menu_button(app, bot.WEBAPP_URL)
     else:
         log("ОГОҲЛАНТИРИШ: BASE_URL йўқ, вебхук ўрнатилмади")
     stop = threading.Event()
     threading.Thread(target=tick_loop, args=(app, stop), daemon=True).start()
     port = int(os.environ.get("PORT", "10000"))
-    srv = ThreadingHTTPServer(("0.0.0.0", port), make_handler(app, secret))
+    srv = ThreadingHTTPServer(("0.0.0.0", port), make_handler(app, secret, app.token))
     log(f"сервер ишга тушди, порт {port}")
     try:
         srv.serve_forever()

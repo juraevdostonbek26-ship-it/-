@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>DOJU Eslatma Kotibi</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* Layout: bir ustunli telefon ilovasi; tepada brend, o'rtada ro'yxat, pastda 4 ta tab. Fon: DOJU suv belgisi. */
+:root{
+  --bg:#0a1230; --surface:#131f4a; --surface2:#1b2b63; --line:#2a3b7c;
+  --text:#f1f4ff; --mute:#9db0e0; --red:#e23042; --blue:#3a74ff; --gold:#f0be64; --ok:#3ccf91;
+  --font:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 var(--font);
+  padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));
+  padding-block:16px 96px}
+.mark{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.9;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='130'%3E%3Cg fill='%239db0e0' fill-opacity='.075' font-family='Arial,sans-serif' font-weight='800' font-size='30' text-anchor='middle'%3E%3Ctext x='65' y='45'%3EDOJU%3C/text%3E%3Ctext x='195' y='110'%3EDOJU%3C/text%3E%3C/g%3E%3Cg fill='%23f0be64' fill-opacity='.16'%3E%3Crect x='47' y='53' width='36' height='3' rx='1.5'/%3E%3Crect x='177' y='118' width='36' height='3' rx='1.5'/%3E%3C/g%3E%3C/svg%3E")}
+.app{position:relative;z-index:1;max-width:480px;margin:0 auto}
+header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.logo{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#0f2158,#2f6bff);display:grid;place-items:center;flex:none}
+.logo i{display:block;width:26px;height:24px;background:#f6f8ff;border-radius:5px;border-top:8px solid var(--red)}
+h1{font-size:21px;font-weight:800;letter-spacing:.4px;margin:0;line-height:1.1}
+header small{color:var(--mute)}
+.tag{margin-left:auto;font-size:11px;color:var(--gold);border:1px solid var(--gold);border-radius:99px;padding:2px 9px;white-space:nowrap}
+.sec{margin:20px 0 8px;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.9px;font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center}
+.stat b{display:block;font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--mute)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:10px;min-width:0}
+.row>div{min-width:0}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.over .dot{background:var(--red)}.today .dot{background:var(--gold)}.soon .dot{background:var(--blue)}
+.t{font-weight:700;overflow-wrap:anywhere}
+.m{color:var(--mute);font-size:13px}
+.amt{margin-left:auto;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;padding-left:8px}
+.btns{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+button{font:inherit;color:var(--text);cursor:pointer}
+.b{flex:1;min-width:110px;border:0;border-radius:12px;padding:11px;font-weight:700;font-size:14px;background:var(--surface2)}
+.b.ok{background:var(--ok);color:#052b1d}
+.b.red{background:var(--red)}
+.b.ghost{background:transparent;border:1px solid var(--line)}
+.b:focus-visible,.chip:focus-visible,nav button:focus-visible,.in:focus-visible,.day:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.card.click .row{cursor:pointer}
+.arrow{color:var(--mute);padding-left:6px}
+textarea.in{min-height:96px;resize:vertical}
+select.in{width:auto;padding:9px 10px}
+.card.paused{opacity:.6}
+.ro{color:var(--mute)}
+.note.warn{color:var(--gold)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+.snz{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+label{display:block;font-size:13px;color:var(--mute);margin:16px 0 6px}
+.in{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px;color:var(--text);font:inherit;font-size:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:9px 14px;border-radius:99px;background:var(--surface);border:1px solid var(--line);font-size:14px}
+.chip.on{background:var(--blue);border-color:var(--blue);font-weight:700}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day{padding:9px 0;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:14px;text-align:center;font-variant-numeric:tabular-nums}
+.day.on{background:var(--red);border-color:var(--red);font-weight:800}
+.day.wide{grid-column:span 7;padding:9px}
+.err{color:#ff8a96;font-size:13px;margin-top:10px;min-height:18px}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.sw>span:first-child{flex:none}
+.tog{width:48px;height:28px;border-radius:99px;background:var(--line);position:relative;border:0;padding:0;flex:none}
+.tog:after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s}
+.tog.on{background:var(--ok)}.tog.on:after{left:23px}
+.empty{text-align:center;color:var(--mute);padding:26px 10px}
+.note{font-size:12px;color:var(--mute);text-align:center;margin:20px 0 0}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(10,18,48,.94);backdrop-filter:blur(8px);border-top:1px solid var(--line);
+  padding:8px max(8px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+nav div{max-width:480px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+nav button{background:none;border:0;color:var(--mute);font-size:11px;padding:6px 0;border-radius:12px;font-weight:600}
+nav button b{display:block;font-size:20px;font-weight:400;line-height:1.3}
+nav button.on{color:var(--text);background:var(--surface2)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom,0px));background:var(--text);color:#0a1230;font-weight:700;padding:10px 16px;border-radius:99px;z-index:9;max-width:90vw;text-align:center}
+@media (prefers-reduced-motion:reduce){.tog:after{transition:none}}
+</style>
+</head>
+<body>
+<div class="mark" aria-hidden="true"></div>
+<div class="app">
+  <header>
+    <div class="logo"><i></i></div>
+    <div><h1>DOJU</h1><small data-i="sub"></small></div>
+  </header>
+  <main id="view"><div class="empty">…</div></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+<nav><div id="tabs">
+  <button data-tab="home"><b>🏠</b><span data-i="today"></span></button>
+  <button data-tab="list"><b>📋</b><span data-i="all"></span></button>
+  <button data-tab="new"><b>➕</b><span data-i="new"></span></button>
+  <button data-tab="set"><b>⚙️</b><span data-i="settings"></span></button>
+</div></nav>
+<script>
+(function(){
+var TG=window.Telegram&&window.Telegram.WebApp, INIT=(TG&&TG.initData)||"";
+try{if(TG){TG.ready();TG.expand();TG.setHeaderColor&&TG.setHeaderColor("#0a1230");TG.setBackgroundColor&&TG.setBackgroundColor("#0a1230")}}catch(e){}
+var T={
+uz:{sub:"Eslatma Kotibi",today:"Bugun",all:"Hammasi",new:"Yangi",settings:"Sozlamalar",over:"Muddati o'tgan",week:"Shu hafta",soon:"Yaqinda",
+ done:"✅ Bajarildi",later:"⏰ Keyinroq",m15:"15 daqiqa",m60:"1 soat",m180:"3 soat",tom:"Ertaga",allhead:"Hammasi ({n})",emptyAll:"Hozircha eslatma yo'q.<br>«Yangi» tabidan birinchisini qo'shing.",
+ emptyToday:"Bugun hammasi bajarilgan ✨",del:"🗑 O'chirish",yesDel:"Ha, o'chirilsin",cancel:"Bekor qilish",editTitle:"✏️ Tahrirlash",qTitle:"Nimani eslatay?",ph:"masalan: Ijara to'lovi",
+ when:"Qachon?",once:"Bir marta",monthly:"Har oy",weekly:"Har hafta",daily:"Har kuni",dom:"Oyning kuni",end:"🔚 Oy oxiri",wdl:"Hafta kuni",date:"Sana",times:"Soatlar (bir nechtasini tanlash mumkin)",
+ otherTime:"Boshqa vaqt",addTime:"+ qo'shish",amount:"Summa (ixtiyoriy)",lead:"Oldindan ogohlantirish",l0:"Yo'q",l1:"1 kun",l3:"3 kun",l7:"7 kun",save:"Saqlash",
+ pause:"⏸ To'xtatish",resume:"▶️ Davom ettirish",skip:"⏭ Keyingisini o'tkazish",paused:"to'xtatilgan",
+ tDone:"✅ Bajarildi",tLater:"⏰ Keyinroq eslatiladi",tDel:"O'chirildi",tSaved:"✅ Saqlandi",tFb:"✅ Rahmat! Xabar asoschiga yuborildi",tSkip:"⏭ O'tkazildi",tSet:"Saqlandi",
+ general:"Umumiy",lang:"Til",tz:"Vaqt mintaqasi",tz5:"Toshkent (+5)",tz3:"Moskva (+3)",rep:"Takror eslatma",rep0:"o'chiq",rep1m:"har 1 daqiqa",rep1:"1 soat",rep3:"3 soat",rep6:"6 soat",
+ quiet:"Tinch soatlar",quietNote:"takroriy xabar kelmaydi",digest:"Kunlik xulosa",dgOff:"o'chiq",other:"Boshqa",fb:"📩 Asoschiga yozish",fbq:"Xato, noqulaylik yoki taklifingizni yozing. Kimligingiz ko'rsatilmaydi.",fbSend:"Yuborish",fbEmpty:"Avval matn yozing.",priv:"🔒 Maxfiylik",
+ privText:"Eslatmalaringizni faqat siz ko'rasiz. Boshqa foydalanuvchilar ularni ko'ra olmaydi. Hamma ma'lumotni botda /deleteme bilan o'chirasiz.",
+ note:"Botdagi va shu oynadagi eslatmalar bir xil: birida yozsangiz, ikkinchisida ham ko'rinadi",kechiktirilgan:"gacha kechiktirilgan",
+ eTitle:"Nimani eslatishni yozing.",eDay:"Oyning kunini tanlang.",eWd:"Hafta kunini tanlang.",eDate:"Sanani tanlang (bugun yoki keyingi kun).",eTime:"Kamida bitta soat tanlang.",eLimit:"Eslatmalar soni chegaraga yetdi. Keraksizini o'chiring.",
+ eAuth:"Oynani Telegram ichidan qayta oching.",eStart:"Avval botda /start bosing va tilni tanlang.",eNet:"Aloqa yo'q. Qayta urinib ko'ring.",eGen:"Xatolik. Qayta urinib ko'ring.",eSlow:"Juda tez. Biroz kuting.",eFb:"Bugun juda ko'p xabar yubordingiz yoki matn bo'sh.",eSkip:"O'tkazib yuboradigan muddat yo'q.",eNf:"Topilmadi. Ro'yxatni yangilang.",
+ openTg:"Bu oyna Telegram ichida ishlaydi. Botdagi «Veb oyna» tugmasini bosing.",
+ wd:["Du","Se","Ch","Pa","Ju","Sh","Ya"],wdl2:["har dushanba","har seshanba","har chorshanba","har payshanba","har juma","har shanba","har yakshanba"],
+ days0:"bugun",daysN:"{n} kun o'tgan",inN:"{n} kundan keyin",tomorrow:"ertaga"},
+ru:{sub:"Секретарь-напоминатель",today:"Сегодня",all:"Все",new:"Новое",settings:"Настройки",over:"Просрочено",week:"На неделе",soon:"Скоро",
+ done:"✅ Выполнено",later:"⏰ Позже",m15:"15 минут",m60:"1 час",m180:"3 часа",tom:"Завтра",allhead:"Все ({n})",emptyAll:"Напоминаний пока нет.<br>Добавьте первое во вкладке «Новое».",
+ emptyToday:"На сегодня всё выполнено ✨",del:"🗑 Удалить",yesDel:"Да, удалить",cancel:"Отмена",editTitle:"✏️ Редактирование",qTitle:"О чём напомнить?",ph:"например: Аренда офиса",
+ when:"Когда?",once:"Один раз",monthly:"Каждый месяц",weekly:"Каждую неделю",daily:"Каждый день",dom:"День месяца",end:"🔚 Конец месяца",wdl:"День недели",date:"Дата",times:"Время (можно несколько)",
+ otherTime:"Другое время",addTime:"+ добавить",amount:"Сумма (необязательно)",lead:"Предупредить заранее",l0:"Нет",l1:"1 день",l3:"3 дня",l7:"7 дней",save:"Сохранить",
+ pause:"⏸ Приостановить",resume:"▶️ Возобновить",skip:"⏭ Пропустить ближайшее",paused:"приостановлено",
+ tDone:"✅ Выполнено",tLater:"⏰ Напомню позже",tDel:"Удалено",tSaved:"✅ Сохранено",tFb:"✅ Спасибо! Сообщение отправлено основателю",tSkip:"⏭ Пропущено",tSet:"Сохранено",
+ general:"Общие",lang:"Язык",tz:"Часовой пояс",tz5:"Ташкент (+5)",tz3:"Москва (+3)",rep:"Повтор напоминания",rep0:"выкл",rep1m:"каждую минуту",rep1:"1 час",rep3:"3 часа",rep6:"6 часов",
+ quiet:"Тихие часы",quietNote:"повторов нет",digest:"Ежедневная сводка",dgOff:"выкл",other:"Другое",fb:"📩 Написать основателю",fbq:"Напишите об ошибке, неудобстве или предложении. Ваше имя не показывается.",fbSend:"Отправить",fbEmpty:"Сначала напишите текст.",priv:"🔒 Конфиденциальность",
+ privText:"Ваши напоминания видите только вы. Другие пользователи их не увидят. Все данные можно удалить в боте командой /deleteme.",
+ note:"Напоминания в боте и в этом окне одинаковые: записали в одном — видно в другом",kechiktirilgan:"отложено до",
+ eTitle:"Напишите, о чём напомнить.",eDay:"Выберите день месяца.",eWd:"Выберите день недели.",eDate:"Выберите дату (сегодня или позже).",eTime:"Выберите хотя бы одно время.",eLimit:"Достигнут лимит напоминаний. Удалите ненужные.",
+ eAuth:"Откройте окно заново из Telegram.",eStart:"Сначала нажмите /start в боте и выберите язык.",eNet:"Нет связи. Попробуйте ещё раз.",eGen:"Ошибка. Попробуйте ещё раз.",eSlow:"Слишком быстро. Подождите.",eFb:"Сегодня вы отправили слишком много сообщений или текст пуст.",eSkip:"Нечего пропускать.",eNf:"Не найдено. Обновите список.",
+ openTg:"Это окно работает внутри Telegram. Нажмите кнопку «Веб-окно» в боте.",
+ wd:["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],wdl2:["каждый понедельник","каждый вторник","каждую среду","каждый четверг","каждую пятницу","каждую субботу","каждое воскресенье"],
+ days0:"сегодня",daysN:"просрочено на {n} дн.",inN:"через {n} дн.",tomorrow:"завтра"}
+};
+var S=null, lang="uz", tab="home", prevTab="home", draft=null, snoozeOpen=null, delAsk=null, fbOpen=false, privOpen=false, fbText="", busy=false, toastT=null;
+function t(k,n){var v=(T[lang]||T.uz)[k];return typeof v==="string"?v.replace("{n}",n):v}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function pad(n){return (n<10?"0":"")+n}
+function dm(iso){return iso.slice(8,10)+"."+iso.slice(5,7)}
+function money(s){var d=String(s||"").replace(/\D/g,"");return d?d.replace(/\B(?=(\d{3})+(?!\d))/g," "):""}
+function hhmm(ts){var d=new Date((ts+S.user.tz*3600)*1000);return pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())}
+function rel(n){return n===0?t("days0"):n===1?t("tomorrow"):t("inN",n)}
+function amt(a){return a?'<div class="amt">'+esc(money(a))+'</div>':""}
+function find(id){for(var i=0;i<S.reminders.length;i++)if(S.reminders[i].id==id)return S.reminders[i]}
+function freqText(r){
+  var tm=r.times.join(", ");
+  if(r.freq==="monthly")return "🔁 "+(lang==="ru"?(r.day===31?"в последний день месяца":"каждое "+r.day+"-е число"):(r.day===31?"har oyning oxirgi kuni":"har oyning "+r.day+"-kuni"))+" · "+tm;
+  if(r.freq==="weekly")return "📆 "+t("wdl2")[r.day]+" · "+tm;
+  if(r.freq==="daily")return "☀️ "+t("daily").toLowerCase()+" · "+tm;
+  return "📅 "+dm(r.date)+" · "+tm;
+}
+function errText(code){
+  return {auth:"eAuth",expired:"eAuth",start_bot:"eStart",title:"eTitle",day:"eDay",weekday:"eWd",date:"eDate",date_past:"eDate",times:"eTime",limit:"eLimit",slow_down:"eSlow",feedback_limit:"eFb",nothing_to_skip:"eSkip",not_found:"eNf"}[code]||"eGen";
+}
+
+/* ---- aloqa ---- */
+function call(action,payload){
+  var opt={headers:{"X-Telegram-Init-Data":INIT}};
+  if(payload!==undefined){opt.method="POST";opt.headers["Content-Type"]="application/json";opt.body=JSON.stringify(payload)}
+  return fetch("/app/api/"+action,opt).then(function(r){return r.json().then(function(j){if(!r.ok)throw {code:j.error||"server"};return j})},function(){throw {code:"net"}});
+}
+function act(action,payload,okMsg,after){
+  if(busy)return; busy=true;
+  call(action,payload).then(function(st){S=st;lang=st.user.lang;busy=false;if(okMsg)toast(t(okMsg));if(after)after();render()},
+    function(e){busy=false;var k=e.code==="net"?"eNet":errText(e.code);if(draft&&action==="reminder"){draft.err=t(k)}else{toast(t(k))}render()});
+}
+function toast(msg){var e=document.getElementById("toast");e.textContent=msg;e.hidden=false;clearTimeout(toastT);toastT=setTimeout(function(){e.hidden=true},2400)}
+
+/* ---- ekranlar ---- */
+function viewHome(){
+  var over=[],today=[],soon=S.soon.slice();
+  S.pending.forEach(function(p){if(p.days>0)soon.push({rid:p.rid,title:p.title,amount:p.amount,due:p.due,days:p.days,times:p.times});else(p.days<0?over:today).push(p)});
+  soon.sort(function(a,b){return a.due<b.due?-1:a.due>b.due?1:0});
+  var week=over.length+today.length+soon.filter(function(x){return x.days<=7}).length;
+  var h='<div class="stats"><div class="stat"><b style="color:var(--red)">'+over.length+'</b><span>'+t("over")+'</span></div><div class="stat"><b style="color:var(--gold)">'+today.length+'</b><span>'+t("today")+'</span></div><div class="stat"><b style="color:var(--blue)">'+week+'</b><span>'+t("week")+'</span></div></div>';
+  function item(p,cls){
+    var sub=(p.days<0?t("daysN",-p.days)+" · ":"")+p.times.join(", ")+(p.snoozed?" · ⏰ "+hhmm(p.fire_ts)+" "+t("kechiktirilgan"):"");
+    var b='<div class="btns"><button class="b ok" data-act="done" data-oid="'+p.oid+'">'+t("done")+'</button><button class="b" data-act="later" data-oid="'+p.oid+'">'+t("later")+'</button></div>';
+    if(snoozeOpen===p.oid)b+='<div class="snz">'+[15,60,180].map(function(m){return '<button class="chip" data-act="snz" data-oid="'+p.oid+'" data-v="'+m+'">'+t("m"+m)+'</button>'}).join("")+'<button class="chip" data-act="snz" data-oid="'+p.oid+'" data-v="tom">'+t("tom")+'</button></div>';
+    return '<div class="card click '+cls+'"><div class="row" data-act="open" data-id="'+p.rid+'"><i class="dot"></i><div><div class="t">'+esc(p.title)+'</div><div class="m">'+esc(sub)+'</div></div>'+amt(p.amount)+'<span class="arrow">›</span></div>'+b+'</div>';
+  }
+  if(over.length){h+='<div class="sec">'+t("over")+'</div>';over.forEach(function(p){h+=item(p,"over")})}
+  if(today.length){h+='<div class="sec">'+t("today")+'</div>';today.forEach(function(p){h+=item(p,"today")})}
+  if(!over.length&&!today.length)h+='<div class="empty">'+t("emptyToday")+'</div>';
+  if(soon.length){h+='<div class="sec">'+t("soon")+'</div>';soon.forEach(function(x){
+    h+='<div class="card click soon"><div class="row" data-act="open" data-id="'+x.rid+'"><i class="dot"></i><div><div class="t">'+esc(x.title)+'</div><div class="m">'+dm(x.due)+" · "+rel(x.days)+'</div></div>'+amt(x.amount)+'<span class="arrow">›</span></div></div>'})}
+  return h+'<p class="note">'+t("note")+'</p>';
+}
+function viewList(){
+  if(!S.reminders.length)return '<div class="empty">'+t("emptyAll")+'</div>';
+  var h='<div class="sec" style="margin-top:0">'+t("allhead",S.reminders.length)+'</div>';
+  S.reminders.forEach(function(r){
+    h+='<div class="card click'+(r.active?"":" paused")+'"><div class="row" data-act="open" data-id="'+r.id+'"><div><div class="t">'+esc(r.title)+(r.active?"":" · "+t("paused"))+'</div><div class="m">'+esc(freqText(r))+'</div></div>'+amt(r.amount)+'<span class="arrow">›</span></div></div>';
+  });
+  return h;
+}
+function newDraft(){return {id:null,title:"",freq:"monthly",day:null,date:"",times:["09:00"],lead:0,amount:"",err:""}}
+function viewNew(){
+  var d=draft||(draft=newDraft()), edit=d.id!=null, r=edit?find(d.id):null;
+  function chips(items,on,act){return items.map(function(x){return '<button class="chip'+(on===x[0]?" on":"")+'" data-act="'+act+'" data-v="'+x[0]+'">'+x[1]+'</button>'}).join("")}
+  var h=(edit?'<div class="sec" style="margin-top:0">'+t("editTitle")+'</div>':'')+'<label for="f-title" style="margin-top:'+(edit?6:0)+'px">'+t("qTitle")+'</label><input class="in" id="f-title" maxlength="80" placeholder="'+esc(t("ph"))+'" value="'+esc(d.title)+'">';
+  h+='<label>'+t("when")+'</label><div class="chips">'+chips([["once",t("once")],["monthly",t("monthly")],["weekly",t("weekly")],["daily",t("daily")]],d.freq,"freq")+'</div>';
+  if(d.freq==="monthly"){h+='<label>'+t("dom")+'</label><div class="days">';for(var i=1;i<=30;i++)h+='<button class="day'+(d.day===i?" on":"")+'" data-act="day" data-v="'+i+'">'+i+'</button>';
+    h+='<button class="day wide'+(d.day===31?" on":"")+'" data-act="day" data-v="31">'+t("end")+'</button></div>'}
+  if(d.freq==="weekly")h+='<label>'+t("wdl")+'</label><div class="chips">'+t("wd").map(function(w,i){return '<button class="chip'+(d.day===i?" on":"")+'" data-act="wd" data-v="'+i+'">'+w+'</button>'}).join("")+'</div>';
+  if(d.freq==="once")h+='<label for="f-date">'+t("date")+'</label><input class="in" type="date" id="f-date" min="'+S.today+'" value="'+esc(d.date)+'">';
+  var base=["09:00","12:00","18:00"],all=base.concat(d.times.filter(function(x){return base.indexOf(x)<0}));
+  h+='<label>'+t("times")+'</label><div class="chips">'+all.map(function(x){return '<button class="chip'+(d.times.indexOf(x)>=0?" on":"")+'" data-act="time" data-v="'+x+'">'+x+'</button>'}).join("")+'<input class="in" type="time" id="f-time" style="width:auto;padding:8px 10px" aria-label="'+esc(t("otherTime"))+'"><button class="chip" data-act="addtime">'+t("addTime")+'</button></div>';
+  h+='<label>'+t("lead")+'</label><div class="chips">'+[0,1,3,7].map(function(n){return '<button class="chip'+(d.lead===n?" on":"")+'" data-act="lead" data-v="'+n+'">'+t("l"+n)+'</button>'}).join("")+'</div>';
+  h+='<label for="f-amt">'+t("amount")+'</label><input class="in" id="f-amt" inputmode="numeric" maxlength="48" placeholder="5 000 000" value="'+esc(money(d.amount))+'">';
+  h+='<div class="err" id="err">'+esc(d.err)+'</div><div class="btns" style="margin-top:0"><button class="b red" data-act="save">'+t("save")+'</button>'+(edit?'<button class="b ghost" data-act="cancelEdit">'+t("cancel")+'</button>':"")+'</div>';
+  if(edit&&r){
+    h+='<div class="btns"><button class="b" data-act="pause" data-id="'+r.id+'">'+(r.active?t("pause"):t("resume"))+'</button>'+(r.freq!=="once"?'<button class="b" data-act="skip" data-id="'+r.id+'">'+t("skip")+'</button>':"")+'</div>';
+    h+='<div class="btns">'+(delAsk===r.id?'<button class="b red" data-act="delyes" data-id="'+r.id+'">'+t("yesDel")+'</button><button class="b ghost" data-act="delno">'+t("cancel")+'</button>':'<button class="b ghost" data-act="del" data-id="'+r.id+'">'+t("del")+'</button>')+'</div>';
+  }
+  return h;
+}
+function viewSet(){
+  var u=S.user;
+  function chip(act,v,l,on){return '<button class="chip'+(on?" on":"")+'" data-act="'+act+'" data-v="'+v+'">'+l+'</button>'}
+  var rp=u.repeat_h;
+  var h='<div class="sec" style="margin-top:0">'+t("general")+'</div>'+
+   '<div class="sw"><span>'+t("lang")+'</span><div class="chips">'+chip("lang","uz","🇺🇿 UZB",u.lang==="uz")+chip("lang","ru","🇷🇺 РУС",u.lang==="ru")+'</div></div>'+
+   '<div class="sw"><span>'+t("tz")+'</span><div class="chips">'+chip("tz","5",t("tz5"),u.tz===5)+chip("tz","3",t("tz3"),u.tz===3)+'</div></div>'+
+   '<div class="sw"><span>'+t("rep")+'</span><div class="chips">'+chip("rep","0",t("rep0"),rp===0)+chip("rep","0.016667",t("rep1m"),rp>0&&rp<0.1)+chip("rep","1",t("rep1"),rp===1)+chip("rep","3",t("rep3"),rp===3)+chip("rep","6",t("rep6"),rp===6)+'</div></div>'+
+   '<div class="sw"><span>'+t("quiet")+'</span><span class="ro">'+pad(u.quiet_start)+':00–'+pad(u.quiet_end)+':00 · '+t("quietNote")+'</span></div>'+
+   '<div class="sw"><span>'+t("digest")+'</span><div class="chips">'+chip("dg","off",t("dgOff"),u.digest_hour==null)+[7,8,9].map(function(x){return chip("dg",x,pad(x)+":00",u.digest_hour===x)}).join("")+'</div></div>'+
+   '<div class="sec">'+t("other")+'</div><div class="sw" data-act="fbtoggle" style="cursor:pointer"><span>'+t("fb")+'</span><span class="ro">'+(fbOpen?"▴":"▾")+'</span></div>';
+  if(fbOpen)h+='<div class="panel"><div class="m" style="margin-bottom:8px">'+t("fbq")+'</div><textarea class="in" id="f-fb" maxlength="1000">'+esc(fbText)+'</textarea><div class="err" id="fberr"></div><div class="btns" style="margin-top:6px"><button class="b red" data-act="fbsend">'+t("fbSend")+'</button></div></div>';
+  h+='<div class="sw" data-act="privtoggle" style="cursor:pointer"><span>'+t("priv")+'</span><span class="ro">'+(privOpen?"▴":"▾")+'</span></div>';
+  if(privOpen)h+='<div class="panel m">'+t("privText")+'</div>';
+  return h+'<p class="note">'+t("note")+'</p>';
+}
+function render(){
+  document.documentElement.lang=lang;
+  [].forEach.call(document.querySelectorAll("[data-i]"),function(e){e.textContent=t(e.dataset.i)});
+  var v=document.getElementById("view");
+  if(!S){return}
+  v.innerHTML={home:viewHome,list:viewList,new:viewNew,set:viewSet}[tab]();
+  [].forEach.call(document.querySelectorAll("#tabs button"),function(b){b.classList.toggle("on",b.dataset.tab===tab)});
+}
+function go(x){if(x!=="new")draft=null;tab=x;snoozeOpen=null;delAsk=null;render();window.scrollTo(0,0)}
+function openEdit(r){prevTab=tab==="new"?prevTab:tab;draft={id:r.id,title:r.title,freq:r.freq,day:r.day,date:r.date||"",times:r.times.slice(),lead:r.lead,amount:r.amount||"",err:""};tab="new";delAsk=null;snoozeOpen=null;render();window.scrollTo(0,0)}
+function syncDraft(){if(!draft)return;var a=document.getElementById("f-title"),m=document.getElementById("f-amt"),d=document.getElementById("f-date");if(a)draft.title=a.value;if(m)draft.amount=m.value.replace(/\D/g,"");if(d)draft.date=d.value}
+
+document.addEventListener("click",function(e){
+  var tb=e.target.closest("#tabs button");if(tb){go(tb.dataset.tab);return}
+  var el=e.target.closest("[data-act]");if(!el||!S)return;
+  var a=el.dataset.act,v=el.dataset.v,id=el.dataset.id,oid=el.dataset.oid;
+  if(a==="open"){var r=find(id);if(r)openEdit(r)}
+  else if(a==="done")act("done",{oid:+oid},"tDone",function(){snoozeOpen=null});
+  else if(a==="later"){snoozeOpen=snoozeOpen==+oid?null:+oid;render()}
+  else if(a==="snz")act("snooze",v==="tom"?{oid:+oid,tomorrow:true}:{oid:+oid,minutes:+v},"tLater",function(){snoozeOpen=null});
+  else if(a==="del"){delAsk=+id;render()}
+  else if(a==="delno"){delAsk=null;render()}
+  else if(a==="delyes")act("delete",{id:+id},"tDel",function(){delAsk=null;draft=null;tab=prevTab;});
+  else if(a==="pause")act("pause",{id:+id},"tSet");
+  else if(a==="skip")act("skip",{id:+id},"tSkip");
+  else if(a==="freq"){syncDraft();draft.freq=v;draft.day=null;draft.err="";render()}
+  else if(a==="day"){syncDraft();draft.day=+v;render()}
+  else if(a==="wd"){syncDraft();draft.day=+v;render()}
+  else if(a==="lead"){syncDraft();draft.lead=+v;render()}
+  else if(a==="time"){syncDraft();var i=draft.times.indexOf(v);if(i>=0)draft.times.splice(i,1);else draft.times.push(v);draft.times.sort();render()}
+  else if(a==="addtime"){syncDraft();var tv=document.getElementById("f-time").value;if(tv&&draft.times.indexOf(tv)<0&&draft.times.length<12){draft.times.push(tv);draft.times.sort()}render()}
+  else if(a==="save"){syncDraft();saveDraft()}
+  else if(a==="cancelEdit"){go(prevTab)}
+  else if(a==="lang")act("settings",{lang:v},"tSet");
+  else if(a==="tz")act("settings",{tz:+v},"tSet");
+  else if(a==="rep")act("settings",{repeat_h:+v},"tSet");
+  else if(a==="dg")act("settings",{digest_hour:v==="off"?null:+v},"tSet");
+  else if(a==="fbtoggle"){fbOpen=!fbOpen;render()}
+  else if(a==="privtoggle"){privOpen=!privOpen;render()}
+  else if(a==="fbsend"){var f=document.getElementById("f-fb");fbText=f?f.value:"";if(!fbText.trim()){document.getElementById("fberr").textContent=t("fbEmpty");return}
+    var txt=fbText;act("feedback",{text:txt},"tFb",function(){fbText="";fbOpen=false})}
+});
+function saveDraft(){
+  var d=draft;
+  if(!d.title.replace(/\s+/g," ").trim()){d.err=t("eTitle");return render()}
+  if(d.freq==="monthly"&&!d.day){d.err=t("eDay");return render()}
+  if(d.freq==="weekly"&&d.day==null){d.err=t("eWd");return render()}
+  if(d.freq==="once"&&!d.date){d.err=t("eDate");return render()}
+  if(!d.times.length){d.err=t("eTime");return render()}
+  var p={title:d.title,freq:d.freq,times:d.times,lead:d.lead,amount:d.amount};
+  if(d.id!=null)p.id=d.id;
+  if(d.freq==="monthly"||d.freq==="weekly")p.day=d.day;
+  if(d.freq==="once")p.date=d.date;
+  var back=d.id!=null?prevTab:"home";
+  act("reminder",p,"tSaved",function(){draft=null;tab=back;snoozeOpen=null;delAsk=null;window.scrollTo(0,0)});
+}
+document.addEventListener("input",function(e){
+  if(e.target.id==="f-fb")fbText=e.target.value;
+  if(e.target.id==="f-amt"){var pos=e.target.selectionStart,before=e.target.value.length;e.target.value=money(e.target.value);var diff=e.target.value.length-before;try{e.target.setSelectionRange(pos+diff,pos+diff)}catch(x){}}
+});
+
+/* ---- boshlash ---- */
+function boot(){
+  if(!INIT){document.getElementById("view").innerHTML='<div class="empty">'+t("openTg")+'</div>';render();return}
+  call("state").then(function(st){S=st;lang=st.user.lang;render()},function(e){
+    var k=e.code==="net"?"eNet":errText(e.code);document.getElementById("view").innerHTML='<div class="empty">'+t(k)+'</div>'});
+}
+render();boot();
+})();
+</script>
+</body>
+</html>

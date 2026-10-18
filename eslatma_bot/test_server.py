@@ -120,3 +120,96 @@ def test_secret_is_derived_from_token_when_not_given():
     assert a != b and a == server.derive_secret("111:AAA") and server.SECRET_RE.match(a) and "111" not in a
     app, secret = server.build({"TELEGRAM_BOT_TOKEN": "111:AAA", "DB_PATH": os.path.join(tempfile.mkdtemp(), "d.db")})
     assert secret == a
+
+
+# ---------- Mini App йўллари ----------
+import time as _time
+import webapi
+API_TOKEN = "777:API-TEST-TOKEN"
+
+
+def start_api():
+    fake = FakeTelegram()
+    db = L.connect(os.path.join(tempfile.mkdtemp(), "a.db"))
+    app = bot.App(db, bot.Tg("TOKEN", fake.url))
+    srv = server.ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(app, SECRET, API_TOKEN))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    for uid in (1, 2):
+        L.ensure_user(db, uid, uid); L.set_user(db, uid, lang="uz")
+    return fake, db, app, srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+def init_for(uid, token=API_TOKEN, age=0):
+    return webapi.sign_init_data({"auth_date": str(int(_time.time()) - age), "user": json.dumps({"id": uid})}, token)
+
+
+def api(base, action, uid=None, payload=None, init=None):
+    h = {"X-Telegram-Init-Data": init if init is not None else (init_for(uid) if uid else "")}
+    if payload is not None:
+        h["Content-Type"] = "application/json"
+    code, body = req(base + "/app/api/" + action, None if payload is None else json.dumps(payload).encode(), h)
+    return code, json.loads(body or b"{}")
+
+
+def test_api_requires_valid_signature_and_isolates_users():
+    fake, db, app, srv, base = start_api()
+    try:
+        assert api(base, "state")[0] == 401  # имзосиз
+        assert api(base, "state", init=init_for(1, token="1:OTHER"))[0] == 401  # бошқа токен
+        assert api(base, "state", init=init_for(1, age=2 * 86400))[0] == 401  # эскирган
+        code, st = api(base, "state", 1); assert code == 200 and st["reminders"] == []
+        good = {"title": "Maxfiy", "freq": "daily", "times": ["09:00"]}
+        code, st = api(base, "reminder", 1, good); assert code == 200 and st["reminders"][0]["title"] == "Maxfiy"
+        rid = st["reminders"][0]["id"]
+        assert api(base, "state", 2)[1]["reminders"] == []  # иккинчи одам кўрмайди
+        for action, p in (("delete", {"id": rid}), ("pause", {"id": rid}), ("reminder", {**good, "id": rid})):
+            assert api(base, action, 2, p)[0] == 404, action
+        assert api(base, "state", 1)[1]["reminders"][0]["title"] == "Maxfiy"
+        # ID имзода алмаштирилса (2 номидан 1 нинг маълумотини сўраш) ўтмайди
+        forged = init_for(2).replace("%22id%22%3A+2", "%22id%22%3A+1")
+        assert api(base, "state", init=forged)[0] == 401
+        assert api(base, "nope", 1, {})[0] == 404
+        assert api(base, "reminder", 1, {"title": ""})[0] == 400
+        assert req(base + "/app/api/reminder", b"not json", {"X-Telegram-Init-Data": init_for(1)})[0] == 400
+        assert not app.errors
+    finally:
+        srv.shutdown(); fake.close()
+
+
+def test_api_user_without_start_gets_clear_error_and_page_served_with_csp():
+    fake, db, app, srv, base = start_api()
+    try:
+        code, body = api(base, "state", 555)
+        assert code == 403 and body["error"] == "start_bot"
+        r = urllib.request.urlopen(base + "/app/")
+        html = r.read().decode()
+        assert r.status == 200 and "DOJU" in html and "telegram-web-app.js" in html
+        assert "default-src 'none'" in r.headers["Content-Security-Policy"] and r.headers["X-Content-Type-Options"] == "nosniff"
+        # токенсиз сервер (ёки хато созлама) API'ни бермайди
+        srv2 = server.ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(app, SECRET, None))
+        threading.Thread(target=srv2.serve_forever, daemon=True).start()
+        base2 = f"http://127.0.0.1:{srv2.server_address[1]}"
+        assert api(base2, "state", 1)[0] == 404
+        srv2.shutdown()
+    finally:
+        srv.shutdown(); fake.close()
+
+
+def test_web_button_in_home_menu_and_menu_button_set():
+    fake, db, app, srv, base = start()
+    old = bot.WEBAPP_URL
+    try:
+        assert not any("web_app" in b for row in bot.home_markup("uz")["inline_keyboard"] for b in row)  # URL йўқ — тугма йўқ
+        bot.WEBAPP_URL = "https://doju.example.com/app/"
+        btns = [b for row in bot.home_markup("ru")["inline_keyboard"] for b in row if "web_app" in b]
+        assert btns and btns[0]["web_app"]["url"] == "https://doju.example.com/app/" and "Веб" in btns[0]["text"]
+        server.set_menu_button(app, "https://doju.example.com/app/")
+        assert fake.menu_button["menu_button"]["web_app"]["url"] == "https://doju.example.com/app/"
+        # меню ҳақиқатан юборилади ва сохта Telegram уни қабул қилади
+        fake.say(7, "/start"); post_update(base, fake.updates[-1])
+        fake.click(7, "🇺🇿 UZB"); post_update(base, fake.updates[-1])
+        assert not fake.errors, fake.errors
+        assert any(x[1] == "🌐 Veb oyna" for x in fake.buttons(7)), fake.buttons(7)
+    finally:
+        bot.WEBAPP_URL = old
+        srv.shutdown(); fake.close()

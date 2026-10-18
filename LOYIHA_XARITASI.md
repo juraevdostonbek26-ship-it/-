@@ -68,6 +68,8 @@
 |---|---|---|
 | dizayn/ | avatar_doju.png, fon_doju_tungi/kunduzgi.png, karta_doju.png, eslatma_melodiya.wav (бренд DOJU) (тасдиқ кутилмоқда) | 🧪 |
 | eslatma_bot/server.py, db.py, requirements.txt, ../render.yaml | Render сервери: вебхук + таймер, Postgres (Neon) уловчиси, Render созламалари | ✅ Render'да ишлаяпти (2026-10-18), /start жавоб беради |
+| eslatma_bot/webapi.py, webapp/index.html | Mini App: Telegram имзоси, амаллар (logic.py орқали), веб саҳифа | 🧪 кодда ва тестда ✅, ҳақиқий Telegram'да кўрилмаган |
+| eslatma_bot/test_webapi.py, test_webapp_browser.py | Mini App тестлари (мантиқ + ҳақиқий браузер) | ✅ |
 | eslatma_bot/logic.py | SQLite (+эски базани янгилаш), жадвал, такрор/кейинрок алгоритми | ✅ |
 | eslatma_bot/bot.py | Telegram: тил, битта хабарли оқим, календарь, соатлар, тугмалар | ✅ |
 | eslatma_bot/texts.py | UZ (лотин) ва RU матнлар (калитлар бир хил, тест текширади) | ✅ |
