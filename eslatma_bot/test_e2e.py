@@ -461,11 +461,13 @@ def test_sound_and_background_buttons_send_files_and_instructions():
         w.click(7, UZ["sound_btn"])
         assert ("sendAudio", "https://doju.example.com/assets/doju_ovoz.mp3", UZ["snd_caption"]) in w.fake.media
         assert "Bildirishnomalar uchun saqlash" in "".join(x[2] for x in w.fake.visible(7))
+        assert "Bildirishnomalar uchun saqlash" in w.fake.visible(7)[-1][2], "меню/йўриқнома файлдан ПАСТДА бўлиши керак"
+        assert sum("Bildirishnomalar uchun saqlash" in x[2] for x in w.fake.visible(7)) == 1  # эски панель қолмайди
         n = len(w.fake.media)
         w.click(7, UZ["back_set"])
         w.click(7, UZ["bg_btn"])
         assert ("sendPhoto", "https://doju.example.com/assets/doju_fon.png", "") in w.fake.media[n:]
-        assert "galereya" in "".join(x[2] for x in w.fake.visible(7))
+        assert "galereya" in w.fake.visible(7)[-1][2], "меню фон расмидан ПАСТДА бўлиши керак"
         # ҳавола берилса — битта босишда қўлланадиган тугма
         bot.BG_LINK = "https://t.me/bg/ABCDEF"
         w.click(7, UZ["back_set"])

@@ -518,16 +518,21 @@ class App:
             qs, qe = (0, 0) if arg == "off" else (int(arg), {"21": 6, "22": 7, "23": 8}[arg])
             L.set_user(self.db, uid, quiet_start=qs, quiet_end=qe)
         elif key == "snd":
-            self.panel(uid, chat, mid, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
-            if ASSET_BASE:
+            if ASSET_BASE:  # файл ОЛДИН юборилади, меню (панель) ҳар доим ЭНГ ПАСТДА қолади
                 self.tg.send_media("sendAudio", chat, "audio", ASSET_BASE + "/assets/doju_ovoz.mp3", tr(lg, "snd_caption"))
+                self.new_panel(uid, chat, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
+            else:
+                self.panel(uid, chat, mid, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
             return
         elif key == "bg":
             if BG_LINK:
                 return self.panel(uid, chat, mid, tr(lg, "bg_help", how=tr(lg, "bg_how_link")), {"inline_keyboard": [[{"text": tr(lg, "bg_btn"), "url": BG_LINK}], [{"text": tr(lg, "back_set"), "callback_data": "set"}], [{"text": tr(lg, "btn_home"), "callback_data": "home"}]]})
-            self.panel(uid, chat, mid, tr(lg, "bg_help", how=tr(lg, "bg_how_photo")), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
-            if ASSET_BASE:
+            markup = kb([[(tr(lg, "back_set"), "set")], home_row(lg)])
+            if ASSET_BASE:  # расм ОЛДИН, меню энг пастда
                 self.tg.send_media("sendPhoto", chat, "photo", ASSET_BASE + "/assets/doju_fon.png")
+                self.new_panel(uid, chat, tr(lg, "bg_help", how=tr(lg, "bg_how_photo")), markup)
+            else:
+                self.panel(uid, chat, mid, tr(lg, "bg_help", how=tr(lg, "bg_how_photo")), markup)
             return
         elif key == "del":
             if arg == "yes":
