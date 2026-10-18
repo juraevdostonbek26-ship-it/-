@@ -11,7 +11,7 @@ def html(lg):
     t = TXT[lg]
     strip = lambda s: re.sub(r"<[^>]+>", "", s)
     home = strip(t["home"]).split("\n")
-    rows = [[t["m_add"], t["m_list"]], [t["m_soon"], t["m_set"]], [t["bg_btn"], t["sound_btn"]], [t["m_fb"]], [t["m_web"]]]
+    rows = [[t["m_add"], t["m_list"]], [t["m_soon"], t["m_set"]], [t["bs_btn"], t["m_video"]], [t["m_fb"]], [t["m_web"]]]
     btn = "".join('<div class="row">' + "".join(f'<div class="b{" web" if r[0] == t["m_web"] else ""}">{c}</div>' for c in r) + "</div>" for r in rows)
     sub = {"uz": "bot", "ru": "бот"}[lg]
     typing = {"uz": "Xabar", "ru": "Сообщение"}[lg]

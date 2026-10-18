@@ -156,11 +156,13 @@ WEBAPP_URL = ""  # сервер ишга тушганда https://…/app/ қў�
 
 
 def home_markup(lg):
-    m = kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")], [(tr(lg, "bg_btn"), "bg"), (tr(lg, "sound_btn"), "snd")], [(tr(lg, "m_fb"), "go:fb")]])
+    m = kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")], [(tr(lg, "m_fb"), "go:fb")]])
+    row = [{"text": tr(lg, "bs_btn"), "callback_data": "bs"}]  # фон ва овоз БИТТА тугмада; видео қўлланма шу қаторда
+    if VIDEO_URL.get(lg):
+        row.append({"text": tr(lg, "m_video"), "url": VIDEO_URL[lg]})
+    m["inline_keyboard"].insert(2, row)
     if WEBAPP_URL:
         m["inline_keyboard"].append([{"text": tr(lg, "m_web"), "web_app": {"url": WEBAPP_URL}}])
-    if VIDEO_URL.get(lg):
-        m["inline_keyboard"].append([{"text": tr(lg, "m_video"), "url": VIDEO_URL[lg]}])
     return m
 
 
@@ -527,6 +529,22 @@ class App:
             else:
                 self.panel(uid, chat, mid, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
             return
+        elif key == "bs":  # фон + овоз БИТТА босишда: файллар олдин, меню (йўриқнома) энг пастда
+            if ASSET_BASE:
+                self.tg.send_media("sendAudio", chat, "audio", ASSET_BASE + "/assets/doju_ovoz.mp3", tr(lg, "snd_caption"))
+                if not BG_LINK:
+                    self.tg.send_media("sendPhoto", chat, "photo", ASSET_BASE + "/assets/doju_fon.png")
+            fon = tr(lg, "bs_fon_link" if BG_LINK else "bs_fon_photo")
+            text = tr(lg, "bs_help", fon=fon)
+            if BG_LINK:
+                mk = {"inline_keyboard": [[{"text": tr(lg, "bg_btn"), "url": BG_LINK}], [{"text": tr(lg, "back_set"), "callback_data": "set"}], [{"text": tr(lg, "btn_home"), "callback_data": "home"}]]}
+            else:
+                mk = kb([[(tr(lg, "back_set"), "set")], home_row(lg)])
+            if ASSET_BASE:
+                self.new_panel(uid, chat, text, mk)
+            else:
+                self.panel(uid, chat, mid, text, mk)
+            return
         elif key == "bg":
             if BG_LINK:
                 return self.panel(uid, chat, mid, tr(lg, "bg_help", how=tr(lg, "bg_how_link")), {"inline_keyboard": [[{"text": tr(lg, "bg_btn"), "url": BG_LINK}], [{"text": tr(lg, "back_set"), "callback_data": "set"}], [{"text": tr(lg, "btn_home"), "callback_data": "home"}]]})
@@ -720,7 +738,7 @@ class App:
         q = tr(lg, "q_off") if u["quiet_start"] == u["quiet_end"] else tr(lg, "q_range", a=f"{u['quiet_start']:02d}", b=f"{u['quiet_end']:02d}")
         text = tr(lg, "settings", lang=LANG_NAME[lg], tz=f"{u['tz']:g}", rep=rep, q=q, dg=dg)
         markup = kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")], [(tr(lg, "tz5"), "tz:5"), (tr(lg, "tz3"), "tz:3")],
-                     [(tr(lg, "rep_btn_off"), "rp:0"), (tr(lg, "rep_btn_m"), "rp:m")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 3, 6)], [(tr(lg, "dg_btn_off"), "dg:off")] + [(tr(lg, "dg_btn", h=f"{h:02d}"), f"dg:{h}") for h in (7, 8, 9)], [(tr(lg, "q_btn_off"), "qh:off")] + [(f"🌙 {a}–{e:02d}", f"qh:{a}") for a, e in ((21, 6), (22, 7), (23, 8))], [(tr(lg, "sound_btn"), "snd"), (tr(lg, "bg_btn"), "bg")], home_row(lg)])
+                     [(tr(lg, "rep_btn_off"), "rp:0"), (tr(lg, "rep_btn_m"), "rp:m")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 3, 6)], [(tr(lg, "dg_btn_off"), "dg:off")] + [(tr(lg, "dg_btn", h=f"{h:02d}"), f"dg:{h}") for h in (7, 8, 9)], [(tr(lg, "q_btn_off"), "qh:off")] + [(f"🌙 {a}–{e:02d}", f"qh:{a}") for a, e in ((21, 6), (22, 7), (23, 8))], [(tr(lg, "bs_btn"), "bs")], home_row(lg)])
         self.panel(uid, chat, mid, text, markup)
 
     # ---------- цикл ----------

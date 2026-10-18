@@ -87,7 +87,7 @@ def test_human_journey_chat_stays_clean():
     w.menu(1, UZ["m_soon"]); assert "12.11" in w.last(1) and len(w.screen(1)) == 1
     w.menu(1, UZ["m_set"]); assert len(w.screen(1)) == 1 and "UTC+5" in w.last(1)
     assert "tz:6" not in str(w.fake.buttons(1))
-    w.click(1, UZ["sound_btn"]); assert "Bildirishnomalar" in w.last(1) and len(w.screen(1)) == 1
+    w.click(1, UZ["bs_btn"]); assert "Bildirishnomalar" in w.last(1) and len(w.screen(1)) == 1
     w.click(1, UZ["back_set"]); w.click(1, "🇷🇺 РУС")
     assert RU["m_add"] in (w.fake.chats[1]["kbd"] or []) and "Русский" in w.last(1)  # пастки меню тили ўзгарди
     assert len(w.screen(1)) == 1
@@ -246,7 +246,7 @@ def test_bottom_menu_never_disappears():
     steps = [lambda: w.menu(1, UZ["m_add"]), lambda: w.say(1, "A"), lambda: w.click(1, UZ["t_day"]), lambda: w.click(1, "09:00"),
              lambda: w.click(1, UZ["time_done"] + " (1)"), lambda: w.click(1, UZ["skip"]), lambda: w.menu(1, UZ["m_list"]),
              lambda: w.click(1, "🔔 A"), lambda: w.click(1, UZ["del"]), lambda: w.click(1, UZ["yes_del"]), lambda: w.menu(1, UZ["m_soon"]),
-             lambda: w.menu(1, UZ["m_set"]), lambda: w.click(1, UZ["sound_btn"]), lambda: w.click(1, UZ["back_set"]), lambda: w.say(1, "/privacy"),
+             lambda: w.menu(1, UZ["m_set"]), lambda: w.click(1, UZ["bs_btn"]), lambda: w.click(1, UZ["back_set"]), lambda: w.say(1, "/privacy"),
              lambda: w.say(1, "tasodifiy matn"), lambda: w.say(1, "/deleteme"), lambda: w.click(1, UZ["no"]), lambda: w.menu(1, UZ["m_set"]),
              lambda: w.click(1, "🇷🇺 РУС"), lambda: w.click(1, "🇺🇿 UZB"), lambda: w.say(1, "/start")]
     for i, st in enumerate(steps):
@@ -276,7 +276,7 @@ def test_every_screen_has_way_home_and_back_works():
     w.click(1, UZ["m_add"]); w.say(1, "X"); w.click(1, UZ["t_day"]); w.click(1, "09:00"); w.click(1, UZ["time_done"] + " (1)"); w.click(1, UZ["skip"])
     for opener in (lambda: w.click(1, UZ["to_list"]), lambda: w.click(1, "🔔 X"), lambda: w.click(1, UZ["del"]), lambda: w.click(1, UZ["no"]),
                    lambda: w.click(1, UZ["btn_home"]), lambda: w.click(1, UZ["m_soon"]), lambda: w.click(1, UZ["btn_home"]), lambda: w.click(1, UZ["m_set"]),
-                   lambda: w.click(1, UZ["sound_btn"]), lambda: w.click(1, UZ["back_set"]), lambda: w.click(1, UZ["btn_home"]), lambda: w.say(1, "/privacy"), lambda: w.say(1, "xyz")):
+                   lambda: w.click(1, UZ["bs_btn"]), lambda: w.click(1, UZ["back_set"]), lambda: w.click(1, UZ["btn_home"]), lambda: w.say(1, "/privacy"), lambda: w.say(1, "xyz")):
         opener(); assert w.nav_ok(1), w.last(1)
     assert len(w.screen(1)) == 1
     w.close()
@@ -453,33 +453,35 @@ def test_quiet_hours_presets_and_off_from_bot_settings():
 
 
 def test_sound_and_background_buttons_send_files_and_instructions():
+    """Фон ва овоз БИТТА тугмада: иккала файл юборилади, меню энг пастда."""
     w = World()
     old = (bot.ASSET_BASE, bot.BG_LINK)
     try:
         bot.ASSET_BASE, bot.BG_LINK = "https://doju.example.com", ""
         w.say(7, "/start"); w.click(7, "🇺🇿 UZB")
-        w.click(7, UZ["sound_btn"])
-        assert ("sendAudio", "https://doju.example.com/assets/doju_ovoz.mp3", UZ["snd_caption"]) in w.fake.media
-        assert "Bildirishnomalar uchun saqlash" in "".join(x[2] for x in w.fake.visible(7))
-        assert "Bildirishnomalar uchun saqlash" in w.fake.visible(7)[-1][2], "меню/йўриқнома файлдан ПАСТДА бўлиши керак"
-        assert sum("Bildirishnomalar uchun saqlash" in x[2] for x in w.fake.visible(7)) == 1  # эски панель қолмайди
+        labels = [x[1] for x in w.fake.buttons(7)]
+        assert UZ["bs_btn"] in labels and UZ["sound_btn"] not in labels and UZ["bg_btn"] not in labels  # алоҳида тугмалар йўқ
+        w.click(7, UZ["bs_btn"])
+        media = w.fake.media
+        assert ("sendAudio", "https://doju.example.com/assets/doju_ovoz.mp3", UZ["snd_caption"]) in media
+        assert ("sendPhoto", "https://doju.example.com/assets/doju_fon.png", "") in media
+        vis = w.fake.visible(7)
+        assert "Bildirishnomalar uchun saqlash" in vis[-1][2] and "galereya" not in vis[-1][2] and "rasmni saqlab oling" in vis[-1][2], "меню/йўриқнома файллардан ПАСТДА"
+        assert sum("Bildirishnomalar uchun saqlash" in x[2] for x in vis) == 1
+        # ҳавола берилса: фон расми юборилмайди, битта босишда қўлланадиган тугма чиқади
         n = len(w.fake.media)
-        w.click(7, UZ["back_set"])
-        w.click(7, UZ["bg_btn"])
-        assert ("sendPhoto", "https://doju.example.com/assets/doju_fon.png", "") in w.fake.media[n:]
-        assert "galereya" in w.fake.visible(7)[-1][2], "меню фон расмидан ПАСТДА бўлиши керак"
-        # ҳавола берилса — битта босишда қўлланадиган тугма
         bot.BG_LINK = "https://t.me/bg/ABCDEF"
-        w.click(7, UZ["back_set"])
-        w.click(7, UZ["bg_btn"])
-        mk = [m for m in w.fake.chats[7]["msgs"].values() if m["markup"] and any("url" in b for r in m["markup"]["inline_keyboard"] for b in r)]
+        w.say(7, "/start")
+        w.click(7, UZ["bs_btn"])
+        assert [m for m in w.fake.media[n:] if m[0] == "sendPhoto"] == [] and any(m[0] == "sendAudio" for m in w.fake.media[n:])
+        mk = [m for m in w.fake.chats[7]["msgs"].values() if m["markup"] and not m["deleted"] and any("url" in b for r in m["markup"]["inline_keyboard"] for b in r)]
         assert mk and mk[-1]["markup"]["inline_keyboard"][0][0]["url"] == "https://t.me/bg/ABCDEF"
         # асос URL йўқ (маҳаллий) — хатосиз, фақат матн
         bot.ASSET_BASE = ""
-        w.click(7, UZ["back_set"])
-        w.click(7, UZ["sound_btn"]); assert not w.app.errors
+        w.say(7, "/start"); w.click(7, UZ["bs_btn"]); assert not w.app.errors
     finally:
         bot.ASSET_BASE, bot.BG_LINK = old
+
 
 
 def test_video_button_only_when_link_is_configured_and_is_https():
