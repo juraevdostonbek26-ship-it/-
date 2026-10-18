@@ -434,3 +434,47 @@ def test_feedback_without_admin_is_kept_and_sent_later():
     w.app.admin_chat = 999
     w.at(w.t + 60)
     assert len(L.unsent_feedback(w.db)) == 0
+
+
+def test_quiet_hours_presets_and_off_from_bot_settings():
+    w = World()
+    w.say(7, "/start"); w.click(7, "🇺🇿 UZB")
+    w.menu(7, UZ["m_set"])
+    assert "22:00–07:00" in w.last(7)
+    for label, want in (("🌙 23–08", (23, 8)), ("🌙 21–06", (21, 6)), ("🌙 22–07", (22, 7))):
+        w.click(7, label)
+        u = L.get_user(w.db, 7)
+        assert (u["quiet_start"], u["quiet_end"]) == want, (label, dict(u))
+    w.click(7, UZ["q_btn_off"])
+    u = L.get_user(w.db, 7)
+    assert u["quiet_start"] == u["quiet_end"] and "o'chiq" in w.last(7)
+    assert not L.in_quiet(3, u["quiet_start"], u["quiet_end"])
+    assert (L.get_user(w.db, 7)["quiet_start"], L.ensure_user(w.db, 8, 8)["quiet_start"]) == (0, 22)  # бошқа фойдаланувчига тегмайди
+
+
+def test_sound_and_background_buttons_send_files_and_instructions():
+    w = World()
+    old = (bot.ASSET_BASE, bot.BG_LINK)
+    try:
+        bot.ASSET_BASE, bot.BG_LINK = "https://doju.example.com", ""
+        w.say(7, "/start"); w.click(7, "🇺🇿 UZB")
+        w.click(7, UZ["sound_btn"])
+        assert ("sendAudio", "https://doju.example.com/assets/doju_ovoz.mp3", UZ["snd_caption"]) in w.fake.media
+        assert "Bildirishnomalar uchun saqlash" in "".join(x[2] for x in w.fake.visible(7))
+        n = len(w.fake.media)
+        w.click(7, UZ["back_set"])
+        w.click(7, UZ["bg_btn"])
+        assert ("sendPhoto", "https://doju.example.com/assets/doju_fon.png", "") in w.fake.media[n:]
+        assert "galereya" in "".join(x[2] for x in w.fake.visible(7))
+        # ҳавола берилса — битта босишда қўлланадиган тугма
+        bot.BG_LINK = "https://t.me/bg/ABCDEF"
+        w.click(7, UZ["back_set"])
+        w.click(7, UZ["bg_btn"])
+        mk = [m for m in w.fake.chats[7]["msgs"].values() if m["markup"] and any("url" in b for r in m["markup"]["inline_keyboard"] for b in r)]
+        assert mk and mk[-1]["markup"]["inline_keyboard"][0][0]["url"] == "https://t.me/bg/ABCDEF"
+        # асос URL йўқ (маҳаллий) — хатосиз, фақат матн
+        bot.ASSET_BASE = ""
+        w.click(7, UZ["back_set"])
+        w.click(7, UZ["sound_btn"]); assert not w.app.errors
+    finally:
+        bot.ASSET_BASE, bot.BG_LINK = old

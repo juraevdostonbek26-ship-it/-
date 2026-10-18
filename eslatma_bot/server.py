@@ -13,6 +13,8 @@ TICK_SECONDS = 15
 MAX_BODY = 1_000_000
 MAX_API_BODY = 100_000
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp")
+ASSET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+ASSETS = {"doju_ovoz.mp3": "audio/mpeg", "doju_fon.png": "image/png"}  # фақат шу файллар (йўл ўзгартириб бошқа файл олиб бўлмайди)
 CSP = ("default-src 'none'; script-src 'unsafe-inline' https://telegram.org; style-src 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src https://fonts.gstatic.com; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'")
 SECRET_RE = re.compile(r"^[A-Za-z0-9_-]{16,200}$")
@@ -78,6 +80,10 @@ def make_handler(app, secret, bot_token=None):
                         return self._send(200, f.read(), "text/html; charset=utf-8", {"Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
                 except OSError:
                     return self._send(404)
+            if path.startswith("/assets/") and path[len("/assets/"):] in ASSETS:
+                name = path[len("/assets/"):]
+                with open(os.path.join(ASSET_DIR, name), "rb") as f:
+                    return self._send(200, f.read(), ASSETS[name], {"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"})
             if path == "/app/api/state":
                 return self._api("state", None)
             self._send(404)
@@ -179,6 +185,7 @@ def main():
         log("ТОКЕН ЎТМАДИ (getMe хатоси):", type(e).__name__, "— токенни текширинг")
     if base:
         bot.WEBAPP_URL = base.rstrip("/") + "/app/"
+        bot.ASSET_BASE = base.rstrip("/")
         set_webhook(app, base, secret)
         set_menu_button(app, bot.WEBAPP_URL)
     else:

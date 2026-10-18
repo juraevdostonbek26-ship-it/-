@@ -40,6 +40,10 @@ def markup_error(mk, edit=False):
             total += 1
             if not b.get("text"):
                 return "button text empty"
+            if "url" in b:  # оддий ҳавола тугмаси
+                if not str(b["url"]).startswith(("https://", "tg://")):
+                    return "BUTTON_URL_INVALID"
+                continue
             if "web_app" in b:  # Mini App тугмаси: https манзил керак
                 if not str(b["web_app"].get("url", "")).startswith("https://"):
                     return "BUTTON_URL_INVALID"
@@ -90,6 +94,23 @@ class FakeTelegram:
 
     def m_getMe(self, b):
         return {"id": 1, "is_bot": True, "username": "fake_bot"}
+
+    def _media(self, b, kind):
+        c = self.chat(b["chat_id"])
+        mid = c["next"]; c["next"] += 1
+        self.media = getattr(self, "media", []) + [(kind, b.get(kind.replace("send", "").lower()), b.get("caption", ""))]
+        c["msgs"][mid] = {"from": "bot", "text": f"[{kind}] {b.get('caption', '')}", "markup": None, "deleted": False}
+        return {"message_id": mid}
+
+    def m_sendAudio(self, b):
+        if not str(b.get("audio", "")).startswith("https://"):
+            raise ValueError("wrong file identifier/HTTP URL specified")
+        return self._media(b, "sendAudio")
+
+    def m_sendPhoto(self, b):
+        if not str(b.get("photo", "")).startswith("https://"):
+            raise ValueError("wrong file identifier/HTTP URL specified")
+        return self._media(b, "sendPhoto")
 
     def m_setChatMenuButton(self, b):
         self.menu_button = b

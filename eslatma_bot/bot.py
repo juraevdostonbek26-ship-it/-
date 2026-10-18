@@ -38,6 +38,13 @@ class Tg:
         with urllib.request.urlopen(req, timeout=70) as r:
             return json.load(r)
 
+    def send_media(self, method, chat, field, url, caption=""):
+        """Овоз/расмни ҳавола орқали юборади (Telegram ўзи юклаб олади)."""
+        try:
+            return self.call(method, chat_id=chat, **{field: url}, caption=caption)
+        except Exception:
+            return None
+
     def send(self, chat, text, markup=None):
         p = {"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
         if markup:
@@ -142,11 +149,13 @@ def kb_home(lg):
     return kb([home_row(lg)])
 
 
+ASSET_BASE = ""  # сервер ишга тушганда https://… қўйилади: овоз ва фон файллари шу манзилдан юборилади
+BG_LINK = os.environ.get("BG_LINK", "")  # Telegram фон ҳаволаси (t.me/bg/…): бир босишда DOJU фонини қўллайди
 WEBAPP_URL = ""  # сервер ишга тушганда https://…/app/ қўйилади; бўш бўлса веб тугмаси чиқмайди
 
 
 def home_markup(lg):
-    m = kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")], [(tr(lg, "m_fb"), "go:fb")]])
+    m = kb([[(tr(lg, "m_add"), "go:add"), (tr(lg, "m_list"), "go:list")], [(tr(lg, "m_soon"), "go:soon"), (tr(lg, "m_set"), "go:set")], [(tr(lg, "bg_btn"), "bg"), (tr(lg, "sound_btn"), "snd")], [(tr(lg, "m_fb"), "go:fb")]])
     if WEBAPP_URL:
         m["inline_keyboard"].append([{"text": tr(lg, "m_web"), "web_app": {"url": WEBAPP_URL}}])
     return m
@@ -505,8 +514,21 @@ class App:
             L.set_user(self.db, uid, repeat_h=0.016667 if arg == "m" else float(arg))
         elif key == "dg" and arg in ("off", "7", "8", "9"):
             L.set_user(self.db, uid, digest_hour=None if arg == "off" else int(arg), digest_date=None)
+        elif key == "qh" and arg in ("off", "21", "22", "23"):
+            qs, qe = (0, 0) if arg == "off" else (int(arg), {"21": 6, "22": 7, "23": 8}[arg])
+            L.set_user(self.db, uid, quiet_start=qs, quiet_end=qe)
         elif key == "snd":
-            return self.panel(uid, chat, mid, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
+            self.panel(uid, chat, mid, tr(lg, "sound_help"), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
+            if ASSET_BASE:
+                self.tg.send_media("sendAudio", chat, "audio", ASSET_BASE + "/assets/doju_ovoz.mp3", tr(lg, "snd_caption"))
+            return
+        elif key == "bg":
+            if BG_LINK:
+                return self.panel(uid, chat, mid, tr(lg, "bg_help", how=tr(lg, "bg_how_link")), {"inline_keyboard": [[{"text": tr(lg, "bg_btn"), "url": BG_LINK}], [{"text": tr(lg, "back_set"), "callback_data": "set"}], [{"text": tr(lg, "btn_home"), "callback_data": "home"}]]})
+            self.panel(uid, chat, mid, tr(lg, "bg_help", how=tr(lg, "bg_how_photo")), kb([[(tr(lg, "back_set"), "set")], home_row(lg)]))
+            if ASSET_BASE:
+                self.tg.send_media("sendPhoto", chat, "photo", ASSET_BASE + "/assets/doju_fon.png")
+            return
         elif key == "del":
             if arg == "yes":
                 L.delete_user_data(self.db, uid)
@@ -687,9 +709,10 @@ class App:
         lg = u["lang"] or "uz"
         rep = tr(lg, "rep_off") if not u["repeat_h"] else tr(lg, "rep_m") if u["repeat_h"] < 0.1 else tr(lg, "rep_val", h=f"{u['repeat_h']:g}")
         dg = tr(lg, "dg_off") if u["digest_hour"] is None else f"{u['digest_hour']:02d}:00"
-        text = tr(lg, "settings", lang=LANG_NAME[lg], tz=f"{u['tz']:g}", rep=rep, qs=u["quiet_start"], qe=u["quiet_end"], dg=dg)
+        q = tr(lg, "q_off") if u["quiet_start"] == u["quiet_end"] else tr(lg, "q_range", a=f"{u['quiet_start']:02d}", b=f"{u['quiet_end']:02d}")
+        text = tr(lg, "settings", lang=LANG_NAME[lg], tz=f"{u['tz']:g}", rep=rep, q=q, dg=dg)
         markup = kb([[("🇺🇿 UZB", "lg:uz"), ("🇷🇺 РУС", "lg:ru")], [(tr(lg, "tz5"), "tz:5"), (tr(lg, "tz3"), "tz:3")],
-                     [(tr(lg, "rep_btn_off"), "rp:0"), (tr(lg, "rep_btn_m"), "rp:m")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 3, 6)], [(tr(lg, "dg_btn_off"), "dg:off")] + [(tr(lg, "dg_btn", h=f"{h:02d}"), f"dg:{h}") for h in (7, 8, 9)], [(tr(lg, "sound_btn"), "snd")], home_row(lg)])
+                     [(tr(lg, "rep_btn_off"), "rp:0"), (tr(lg, "rep_btn_m"), "rp:m")] + [(tr(lg, "rep_btn", h=h), f"rp:{h}") for h in (1, 3, 6)], [(tr(lg, "dg_btn_off"), "dg:off")] + [(tr(lg, "dg_btn", h=f"{h:02d}"), f"dg:{h}") for h in (7, 8, 9)], [(tr(lg, "q_btn_off"), "qh:off")] + [(f"🌙 {a}–{e:02d}", f"qh:{a}") for a, e in ((21, 6), (22, 7), (23, 8))], [(tr(lg, "sound_btn"), "snd"), (tr(lg, "bg_btn"), "bg")], home_row(lg)])
         self.panel(uid, chat, mid, text, markup)
 
     # ---------- цикл ----------

@@ -213,3 +213,14 @@ def test_web_button_in_home_menu_and_menu_button_set():
     finally:
         bot.WEBAPP_URL = old
         srv.shutdown(); fake.close()
+
+
+def test_assets_served_only_from_whitelist():
+    fake, db, app, srv, base = start()
+    try:
+        c, body = req(base + "/assets/doju_ovoz.mp3"); assert c == 200 and body[:3] in (b"ID3", b"\xff\xfb", b"\xff\xf3") or len(body) > 1000
+        c, body = req(base + "/assets/doju_fon.png"); assert c == 200 and body[:4] == b"\x89PNG"
+        for bad in ("/assets/../server.py", "/assets/%2e%2e/server.py", "/assets/server.py", "/assets/", "/assets/doju_ovoz.mp3/../../db.py", "/assets/..%2fdb.py"):
+            assert req(base + bad)[0] == 404, bad
+    finally:
+        srv.shutdown(); fake.close()
