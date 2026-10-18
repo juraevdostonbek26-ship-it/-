@@ -74,7 +74,7 @@ def get_state(conn, uid, now, admin_id=0):
         due = date.fromisoformat(o["due"])
         taken.add((o["rid"], o["due"]))
         pending.append({"oid": o["oid"], "rid": o["rid"], "title": r["title"], "amount": r["amount"] or "", "due": o["due"],
-                        "days": (due - today).days, "times": L.times_of(r), "fire_ts": o["next_ts"], "snoozed": o["next_ts"] > now and due <= today})
+                        "days": (due - today).days, "times": L.times_of(r), "fire_ts": o["next_ts"], "snoozed": o["sent_count"] > 0 and o["next_ts"] > now + 300 and due <= today})  # эслатма юборилган ва кейинги вақт 5+ дақиқадан кейин
     soon = []
     for r in rows:
         if not r["active"]:

@@ -128,6 +128,8 @@ def test_done_snooze_and_state_buckets():
     assert [p["title"] for p in st["pending"]] == ["Bugun"] and st["pending"][0]["days"] == 0
     assert [s["title"] for s in st["soon"]] == ["Yaqin"] and st["soon"][0]["days"] == 8
     oid = st["pending"][0]["oid"]
+    assert st["pending"][0]["snoozed"] is False  # ҳали юборилмаган ва ўзи белгиланган вақт — «кейинга қолдирилган» эмас
+    db.execute("UPDATE occ SET sent_count=1 WHERE id=?", (oid,)); db.commit()  # эслатма ботдан келди
     raises("bad_value", W.handle, db, 1, "snooze", {"oid": oid, "minutes": 7}, NOW)
     st = W.handle(db, 1, "snooze", {"oid": oid, "minutes": 60}, ts(2026, 11, 2, 9, 30))
     assert st["pending"][0]["snoozed"] is True and abs(st["pending"][0]["fire_ts"] - (ts(2026, 11, 2, 9, 30) + 3600)) < 1

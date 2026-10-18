@@ -118,7 +118,7 @@ uz:{inbox:"Xabarlar",inboxHead:"Foydalanuvchilar xabarlari",fbNew:"Yangi",fbDone
  general:"Umumiy",lang:"Til",tz:"Vaqt mintaqasi",tz5:"Toshkent (+5)",tz3:"Moskva (+3)",rep:"Takror eslatma",rep0:"o'chiq",rep1m:"har 1 daqiqa",rep1:"1 soat",rep3:"3 soat",rep6:"6 soat",
  quiet:"Tinch soatlar",quietNote:"takroriy xabar kelmaydi",quietOn:"yoqiq",quietOff:"o'chiq",qFrom:"dan",qTo:"gacha",digest:"Kunlik xulosa",dgOff:"o'chiq",other:"Boshqa",fb:"📩 Asoschiga yozish",fbq:"Xato, noqulaylik yoki taklifingizni yozing. Kimligingiz ko'rsatilmaydi.",fbSend:"Yuborish",fbEmpty:"Avval matn yozing.",priv:"🔒 Maxfiylik",
  privText:"Eslatmalaringizni faqat siz ko'rasiz. Boshqa foydalanuvchilar ularni ko'ra olmaydi. Hamma ma'lumotni botda /deleteme bilan o'chirasiz.",
- note:"Botdagi va shu oynadagi eslatmalar bir xil: birida yozsangiz, ikkinchisida ham ko'rinadi",kechiktirilgan:"gacha kechiktirilgan",
+ note:"Botdagi va shu oynadagi eslatmalar bir xil: birida yozsangiz, ikkinchisida ham ko'rinadi",kechiktirilgan:"keyingi eslatma",
  eTitle:"Nimani eslatishni yozing.",eDay:"Oyning kunini tanlang.",eWd:"Hafta kunini tanlang.",eDate:"Sanani tanlang (bugun yoki keyingi kun).",eTime:"Kamida bitta soat tanlang.",eLimit:"Eslatmalar soni chegaraga yetdi. Keraksizini o'chiring.",
  eAuth:"Oynani Telegram ichidan qayta oching.",eStart:"Avval botda /start bosing va tilni tanlang.",eNet:"Aloqa yo'q. Qayta urinib ko'ring.",eGen:"Xatolik. Qayta urinib ko'ring.",eSlow:"Juda tez. Biroz kuting.",eFb:"Bugun juda ko'p xabar yubordingiz yoki matn bo'sh.",eSkip:"O'tkazib yuboradigan muddat yo'q.",eNf:"Topilmadi. Ro'yxatni yangilang.",
  openTg:"Bu oyna Telegram ichida ishlaydi. Botdagi «Veb oyna» tugmasini bosing.",
@@ -134,7 +134,7 @@ ru:{inbox:"Сообщения",inboxHead:"Сообщения пользоват�
  general:"Общие",lang:"Язык",tz:"Часовой пояс",tz5:"Ташкент (+5)",tz3:"Москва (+3)",rep:"Повтор напоминания",rep0:"выкл",rep1m:"каждую минуту",rep1:"1 час",rep3:"3 часа",rep6:"6 часов",
  quiet:"Тихие часы",quietNote:"повторов нет",quietOn:"вкл",quietOff:"выкл",qFrom:"с",qTo:"до",digest:"Ежедневная сводка",dgOff:"выкл",other:"Другое",fb:"📩 Написать основателю",fbq:"Напишите об ошибке, неудобстве или предложении. Ваше имя не показывается.",fbSend:"Отправить",fbEmpty:"Сначала напишите текст.",priv:"🔒 Конфиденциальность",
  privText:"Ваши напоминания видите только вы. Другие пользователи их не увидят. Все данные можно удалить в боте командой /deleteme.",
- note:"Напоминания в боте и в этом окне одинаковые: записали в одном — видно в другом",kechiktirilgan:"отложено до",
+ note:"Напоминания в боте и в этом окне одинаковые: записали в одном — видно в другом",kechiktirilgan:"следующее напоминание",
  eTitle:"Напишите, о чём напомнить.",eDay:"Выберите день месяца.",eWd:"Выберите день недели.",eDate:"Выберите дату (сегодня или позже).",eTime:"Выберите хотя бы одно время.",eLimit:"Достигнут лимит напоминаний. Удалите ненужные.",
  eAuth:"Откройте окно заново из Telegram.",eStart:"Сначала нажмите /start в боте и выберите язык.",eNet:"Нет связи. Попробуйте ещё раз.",eGen:"Ошибка. Попробуйте ещё раз.",eSlow:"Слишком быстро. Подождите.",eFb:"Сегодня вы отправили слишком много сообщений или текст пуст.",eSkip:"Нечего пропускать.",eNf:"Не найдено. Обновите список.",
  openTg:"Это окно работает внутри Telegram. Нажмите кнопку «Веб-окно» в боте.",
@@ -183,7 +183,7 @@ function viewHome(){
   var week=over.length+today.length+soon.filter(function(x){return x.days<=7}).length;
   var h='<div class="stats"><div class="stat"><b style="color:var(--red)">'+over.length+'</b><span>'+t("over")+'</span></div><div class="stat"><b style="color:var(--gold)">'+today.length+'</b><span>'+t("today")+'</span></div><div class="stat"><b style="color:var(--blue)">'+week+'</b><span>'+t("week")+'</span></div></div>';
   function item(p,cls){
-    var sub=(p.days<0?t("daysN",-p.days)+" · ":"")+p.times.join(", ")+(p.snoozed?" · ⏰ "+hhmm(p.fire_ts)+" "+t("kechiktirilgan"):"");
+    var sub=(p.days<0?t("daysN",-p.days)+" · ":"")+p.times.join(", ")+(p.snoozed?" · ⏰ "+t("kechiktirilgan")+" "+hhmm(p.fire_ts):"");
     var b='<div class="btns"><button class="b ok" data-act="done" data-oid="'+p.oid+'">'+t("done")+'</button><button class="b" data-act="later" data-oid="'+p.oid+'">'+t("later")+'</button></div>';
     if(snoozeOpen===p.oid)b+='<div class="snz">'+[15,60,180].map(function(m){return '<button class="chip" data-act="snz" data-oid="'+p.oid+'" data-v="'+m+'">'+t("m"+m)+'</button>'}).join("")+'<button class="chip" data-act="snz" data-oid="'+p.oid+'" data-v="tom">'+t("tom")+'</button></div>';
     return '<div class="card click '+cls+'"><div class="row" data-act="open" data-id="'+p.rid+'"><i class="dot"></i><div><div class="t">'+esc(p.title)+'</div><div class="m">'+esc(sub)+'</div></div>'+amt(p.amount)+'<span class="arrow">›</span></div>'+b+'</div>';
