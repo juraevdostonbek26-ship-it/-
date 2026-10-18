@@ -60,7 +60,7 @@ def _rem(r):
             "times": L.times_of(r), "lead": r["lead_days"], "active": bool(r["active"])}
 
 
-def get_state(conn, uid, now):
+def get_state(conn, uid, now, admin_id=0):
     u = L.get_user(conn, uid)
     if not u or u["lang"] is None:
         raise ApiError("start_bot", 403)  # аввал ботда /start босиб, тил танлаш керак
@@ -88,9 +88,14 @@ def get_state(conn, uid, now):
             soon.append({"rid": r["id"], "title": r["title"], "amount": r["amount"] or "", "due": d.isoformat(), "days": (d - today).days, "times": L.times_of(r)})
             break  # эслатма учун битта (энг яқин) муддат
     soon.sort(key=lambda x: (x["due"], x["title"]))
-    return {"now": now, "today": today.isoformat(), "user": {"lang": u["lang"], "tz": u["tz"], "repeat_h": u["repeat_h"], "digest_hour": u["digest_hour"],
+    out = {"now": now, "today": today.isoformat(), "user": {"lang": u["lang"], "tz": u["tz"], "repeat_h": u["repeat_h"], "digest_hour": u["digest_hour"],
                                                               "quiet_start": u["quiet_start"], "quiet_end": u["quiet_end"]},
-            "pending": pending, "soon": soon, "reminders": [_rem(r) for r in rows], "max": L.MAX_REMINDERS}
+            "pending": pending, "soon": soon, "reminders": [_rem(r) for r in rows], "max": L.MAX_REMINDERS,
+            "admin": bool(admin_id) and uid == admin_id}
+    if out["admin"]:  # фақат асосчи: фойдаланувчилар ёзган хатлар (юборувчи номисиз)
+        out["feedback"] = [{"id": f["id"], "text": f["text"], "ts": f["ts"], "done": bool(f["done"])}
+                           for f in conn.execute("SELECT id, text, ts, done FROM feedback ORDER BY id DESC LIMIT 300").fetchall()]
+    return out
 
 
 # ---------- амаллар ----------
@@ -252,13 +257,26 @@ ACTIONS = {
 }
 
 
-def handle(conn, uid, action, payload, now):
+def fb_done(conn, uid, p, now, admin_id=0):
+    if not admin_id or uid != admin_id:
+        raise ApiError("forbidden", 403)
+    fid = _int(p.get("id"))
+    cur = conn.execute("UPDATE feedback SET done=? WHERE id=?", (1 if p.get("done") else 0, fid))
+    conn.commit()
+    if cur.rowcount != 1:
+        raise ApiError("not_found", 404)
+
+
+def handle(conn, uid, action, payload, now, admin_id=0):
     """Амални бажаради ва янги ҳолатни қайтаради. Хато бўлса ApiError."""
     if action != "state":
-        if action not in ACTIONS:
+        if action != "fb_done" and action not in ACTIONS:
             raise ApiError("unknown", 404)
         if not isinstance(payload, dict):
             raise ApiError("bad_value")
         get_state(conn, uid, now)  # фойдаланувчи ботда рўйхатдан ўтганини текшириш
-        ACTIONS[action](conn, uid, payload, now)
-    return get_state(conn, uid, now)
+        if action == "fb_done":
+            fb_done(conn, uid, payload, now, admin_id)
+        else:
+            ACTIONS[action](conn, uid, payload, now)
+    return get_state(conn, uid, now, admin_id)

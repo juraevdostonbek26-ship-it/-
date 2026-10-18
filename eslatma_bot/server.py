@@ -92,7 +92,7 @@ def make_handler(app, secret, bot_token=None):
                 with LOCK:
                     if app.limited(uid):
                         raise webapi.ApiError("slow_down", 429)
-                    out = webapi.handle(app.db, uid, action, payload if payload is not None else {}, time.time())
+                    out = webapi.handle(app.db, uid, action, payload if payload is not None else {}, time.time(), app.admin_chat)
                 self._send(200, json.dumps(out, ensure_ascii=False).encode(), extra=hdr)
             except webapi.ApiError as e:
                 self._send(e.status, json.dumps({"error": e.code}).encode(), extra=hdr)

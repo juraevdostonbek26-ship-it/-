@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS occ(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INT
 CREATE TABLE IF NOT EXISTS conv(user_id INTEGER PRIMARY KEY, step TEXT NOT NULL, data TEXT NOT NULL, ts REAL NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, text TEXT NOT NULL,
-  ts REAL NOT NULL, sent INTEGER NOT NULL DEFAULT 0);
+  ts REAL NOT NULL, sent INTEGER NOT NULL DEFAULT 0, done INTEGER NOT NULL DEFAULT 0);
 """
 USER_TABLES = ("occ", "reminders", "conv", "feedback", "users")
 FEEDBACK_PER_DAY = 5
@@ -46,7 +46,7 @@ def connect(path):
         ddl = lambda x: x
         cols = lambda t: {r[1] for r in conn.execute(f"PRAGMA table_info({t})")}
     conn.executescript(ddl(SCHEMA))
-    for t, c, typ in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("users", "digest_hour", "INTEGER"), ("users", "digest_date", "TEXT"), ("users", "digest_mid", "INTEGER"), ("conv", "ts", "REAL NOT NULL DEFAULT 0"), ("occ", "card_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0")):
+    for t, c, typ in (("users", "lang", "TEXT"), ("users", "panel_mid", "INTEGER"), ("users", "anchor_mid", "INTEGER"), ("users", "anchor_lang", "TEXT"), ("users", "digest_hour", "INTEGER"), ("users", "digest_date", "TEXT"), ("users", "digest_mid", "INTEGER"), ("conv", "ts", "REAL NOT NULL DEFAULT 0"), ("occ", "card_mid", "INTEGER"), ("reminders", "times", "TEXT"), ("reminders", "created_ts", "REAL NOT NULL DEFAULT 0"), ("feedback", "done", "INTEGER NOT NULL DEFAULT 0")):
         if c not in cols(t):  # эски базани йўқотмасдан янгилаш
             conn.execute(f"ALTER TABLE {t} ADD COLUMN {c} {ddl(typ)}")
     if not conn.execute("SELECT 1 FROM meta WHERE k='rep_1min'").fetchone():  # 2026-10-17: стандарт такрор 3 соат → 1 дақиқа (барча учун)

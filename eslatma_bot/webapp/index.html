@@ -23,7 +23,7 @@ body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 var(--font);
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='130'%3E%3Cg fill='%239db0e0' fill-opacity='.075' font-family='Arial,sans-serif' font-weight='800' font-size='30' text-anchor='middle'%3E%3Ctext x='65' y='45'%3EDOJU%3C/text%3E%3Ctext x='195' y='110'%3EDOJU%3C/text%3E%3C/g%3E%3Cg fill='%23f0be64' fill-opacity='.16'%3E%3Crect x='47' y='53' width='36' height='3' rx='1.5'/%3E%3Crect x='177' y='118' width='36' height='3' rx='1.5'/%3E%3C/g%3E%3C/svg%3E")}
 .app{position:relative;z-index:1;max-width:480px;margin:0 auto}
 header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
-.logo{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#0f2158,#2f6bff);display:grid;place-items:center;flex:none}
+.logo{width:54px;height:54px;flex:none;display:block}
 .logo i{display:block;width:26px;height:24px;background:#f6f8ff;border-radius:5px;border-top:8px solid var(--red)}
 h1{font-size:21px;font-weight:800;letter-spacing:.4px;margin:0;line-height:1.1}
 header small{color:var(--mute)}
@@ -53,6 +53,8 @@ button{font:inherit;color:var(--text);cursor:pointer}
 textarea.in{min-height:96px;resize:vertical}
 select.in{width:auto;padding:9px 10px}
 .card.paused{opacity:.6}
+nav em{font-style:normal;color:var(--gold);font-weight:800}
+.fbtext{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:600;margin:6px 0 0}
 .ro{color:var(--mute)}
 .note.warn{color:var(--gold)}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
@@ -88,7 +90,7 @@ nav button.on{color:var(--text);background:var(--surface2)}
 <div class="mark" aria-hidden="true"></div>
 <div class="app">
   <header>
-    <div class="logo"><i></i></div>
+    <svg class="logo" viewBox="0 0 100 100" width="54" height="54" role="img" aria-label="DOJU"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0f2158"/><stop offset="1" stop-color="#2f6bff"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#lg)"/><rect x="31" y="12" width="8" height="16" rx="4" fill="#0a1230"/><rect x="61" y="12" width="8" height="16" rx="4" fill="#0a1230"/><path d="M14 31a9 9 0 0 1 9-9h54a9 9 0 0 1 9 9v10H14z" fill="#e23042"/><path d="M14 41h72v37a9 9 0 0 1-9 9H23a9 9 0 0 1-9-9z" fill="#f6f8ff"/><text x="50" y="68" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="21" fill="#10225a">DOJU</text><rect x="36" y="73" width="28" height="3" rx="1.5" fill="#e23042"/></svg>
     <div><h1>DOJU</h1><small data-i="sub"></small></div>
   </header>
   <main id="view"><div class="empty">…</div></main>
@@ -99,13 +101,14 @@ nav button.on{color:var(--text);background:var(--surface2)}
   <button data-tab="list"><b>📋</b><span data-i="all"></span></button>
   <button data-tab="new"><b>➕</b><span data-i="new"></span></button>
   <button data-tab="set"><b>⚙️</b><span data-i="settings"></span></button>
+  <button data-tab="inbox" id="tab-inbox" hidden><b>📩</b><span data-i="inbox"></span><em id="inbox-n"></em></button>
 </div></nav>
 <script>
 (function(){
 var TG=window.Telegram&&window.Telegram.WebApp, INIT=(TG&&TG.initData)||"";
 try{if(TG){TG.ready();TG.expand();TG.setHeaderColor&&TG.setHeaderColor("#0a1230");TG.setBackgroundColor&&TG.setBackgroundColor("#0a1230")}}catch(e){}
 var T={
-uz:{sub:"Eslatma Kotibi",today:"Bugun",all:"Hammasi",new:"Yangi",settings:"Sozlamalar",over:"Muddati o'tgan",week:"Shu hafta",soon:"Yaqinda",
+uz:{inbox:"Xabarlar",inboxHead:"Foydalanuvchilar xabarlari",fbNew:"Yangi",fbDoneF:"Hal qilingan",fbAllF:"Hammasi",fbMark:"✅ Hal qilindi",fbUndo:"↩ Qaytarish",fbNone:"Bu yerda xabar yo'q ✨",fbAnon:"Yozgan odam ko'rsatilmaydi. Faqat siz ko'rasiz.",sub:"Eslatma Kotibi",today:"Bugun",all:"Hammasi",new:"Yangi",settings:"Sozlamalar",over:"Muddati o'tgan",week:"Shu hafta",soon:"Yaqinda",
  done:"✅ Bajarildi",later:"⏰ Keyinroq",m15:"15 daqiqa",m60:"1 soat",m180:"3 soat",tom:"Ertaga",allhead:"Hammasi ({n})",emptyAll:"Hozircha eslatma yo'q.<br>«Yangi» tabidan birinchisini qo'shing.",
  emptyToday:"Bugun hammasi bajarilgan ✨",del:"🗑 O'chirish",yesDel:"Ha, o'chirilsin",cancel:"Bekor qilish",editTitle:"✏️ Tahrirlash",qTitle:"Nimani eslatay?",ph:"masalan: Ijara to'lovi",
  when:"Qachon?",once:"Bir marta",monthly:"Har oy",weekly:"Har hafta",daily:"Har kuni",dom:"Oyning kuni",end:"🔚 Oy oxiri",wdl:"Hafta kuni",date:"Sana",times:"Soatlar (bir nechtasini tanlash mumkin)",
@@ -121,7 +124,7 @@ uz:{sub:"Eslatma Kotibi",today:"Bugun",all:"Hammasi",new:"Yangi",settings:"Sozla
  openTg:"Bu oyna Telegram ichida ishlaydi. Botdagi «Veb oyna» tugmasini bosing.",
  wd:["Du","Se","Ch","Pa","Ju","Sh","Ya"],wdl2:["har dushanba","har seshanba","har chorshanba","har payshanba","har juma","har shanba","har yakshanba"],
  days0:"bugun",daysN:"{n} kun o'tgan",inN:"{n} kundan keyin",tomorrow:"ertaga"},
-ru:{sub:"Секретарь-напоминатель",today:"Сегодня",all:"Все",new:"Новое",settings:"Настройки",over:"Просрочено",week:"На неделе",soon:"Скоро",
+ru:{inbox:"Сообщения",inboxHead:"Сообщения пользователей",fbNew:"Новые",fbDoneF:"Решённые",fbAllF:"Все",fbMark:"✅ Решено",fbUndo:"↩ Вернуть",fbNone:"Здесь сообщений нет ✨",fbAnon:"Автор не показывается. Видите только вы.",sub:"Секретарь-напоминатель",today:"Сегодня",all:"Все",new:"Новое",settings:"Настройки",over:"Просрочено",week:"На неделе",soon:"Скоро",
  done:"✅ Выполнено",later:"⏰ Позже",m15:"15 минут",m60:"1 час",m180:"3 часа",tom:"Завтра",allhead:"Все ({n})",emptyAll:"Напоминаний пока нет.<br>Добавьте первое во вкладке «Новое».",
  emptyToday:"На сегодня всё выполнено ✨",del:"🗑 Удалить",yesDel:"Да, удалить",cancel:"Отмена",editTitle:"✏️ Редактирование",qTitle:"О чём напомнить?",ph:"например: Аренда офиса",
  when:"Когда?",once:"Один раз",monthly:"Каждый месяц",weekly:"Каждую неделю",daily:"Каждый день",dom:"День месяца",end:"🔚 Конец месяца",wdl:"День недели",date:"Дата",times:"Время (можно несколько)",
@@ -138,7 +141,7 @@ ru:{sub:"Секретарь-напоминатель",today:"Сегодня",all
  wd:["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],wdl2:["каждый понедельник","каждый вторник","каждую среду","каждый четверг","каждую пятницу","каждую субботу","каждое воскресенье"],
  days0:"сегодня",daysN:"просрочено на {n} дн.",inN:"через {n} дн.",tomorrow:"завтра"}
 };
-var S=null, lang="uz", tab="home", prevTab="home", draft=null, snoozeOpen=null, delAsk=null, fbOpen=false, privOpen=false, fbText="", busy=false, toastT=null;
+var fbFilter="new", S=null, lang="uz", tab="home", prevTab="home", draft=null, snoozeOpen=null, delAsk=null, fbOpen=false, privOpen=false, fbText="", busy=false, toastT=null;
 function t(k,n){var v=(T[lang]||T.uz)[k];return typeof v==="string"?v.replace("{n}",n):v}
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function pad(n){return (n<10?"0":"")+n}
@@ -156,7 +159,7 @@ function freqText(r){
   return "📅 "+dm(r.date)+" · "+tm;
 }
 function errText(code){
-  return {auth:"eAuth",expired:"eAuth",start_bot:"eStart",title:"eTitle",day:"eDay",weekday:"eWd",date:"eDate",date_past:"eDate",times:"eTime",limit:"eLimit",slow_down:"eSlow",feedback_limit:"eFb",nothing_to_skip:"eSkip",not_found:"eNf"}[code]||"eGen";
+  return {auth:"eAuth",expired:"eAuth",start_bot:"eStart",title:"eTitle",day:"eDay",weekday:"eWd",date:"eDate",date_past:"eDate",times:"eTime",limit:"eLimit",slow_down:"eSlow",feedback_limit:"eFb",nothing_to_skip:"eSkip",not_found:"eNf",forbidden:"eGen"}[code]||"eGen";
 }
 
 /* ---- aloqa ---- */
@@ -237,12 +240,27 @@ function viewSet(){
   if(privOpen)h+='<div class="panel m">'+t("privText")+'</div>';
   return h+'<p class="note">'+t("note")+'</p>';
 }
+function dtm(ts){var d=new Date((ts+S.user.tz*3600)*1000);return pad(d.getUTCDate())+"."+pad(d.getUTCMonth()+1)+" "+pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())}
+function viewInbox(){
+  var all=S.feedback||[], n=all.filter(function(f){return !f.done}).length;
+  var list=all.filter(function(f){return fbFilter==="all"||(fbFilter==="done"?f.done:!f.done)});
+  var h='<div class="sec" style="margin-top:0">'+t("inboxHead")+'</div><div class="chips">'+[["new",t("fbNew")+" ("+n+")"],["done",t("fbDoneF")],["all",t("fbAllF")]].map(function(x){return '<button class="chip'+(fbFilter===x[0]?" on":"")+'" data-act="fbfilter" data-v="'+x[0]+'">'+x[1]+'</button>'}).join("")+'</div>';
+  if(!list.length)h+='<div class="empty">'+t("fbNone")+'</div>';
+  list.forEach(function(f){
+    h+='<div class="card'+(f.done?" paused":"")+'"><div class="m">#'+f.id+' · '+dtm(f.ts)+'</div><div class="fbtext">'+esc(f.text)+'</div><div class="btns"><button class="b '+(f.done?"ghost":"ok")+'" data-act="fbdone" data-id="'+f.id+'" data-v="'+(f.done?0:1)+'">'+(f.done?t("fbUndo"):t("fbMark"))+'</button></div></div>';
+  });
+  return h+'<p class="note">'+t("fbAnon")+'</p>';
+}
 function render(){
   document.documentElement.lang=lang;
   [].forEach.call(document.querySelectorAll("[data-i]"),function(e){e.textContent=t(e.dataset.i)});
   var v=document.getElementById("view");
   if(!S){return}
-  v.innerHTML={home:viewHome,list:viewList,new:viewNew,set:viewSet}[tab]();
+  var ib=document.getElementById("tab-inbox");ib.hidden=!S.admin;
+  document.querySelector("#tabs").style.gridTemplateColumns="repeat("+(S.admin?5:4)+",1fr)";
+  var nn=S.admin?(S.feedback||[]).filter(function(f){return !f.done}).length:0;document.getElementById("inbox-n").textContent=nn?" "+nn:"";
+  if(tab==="inbox"&&!S.admin)tab="home";
+  v.innerHTML={home:viewHome,list:viewList,new:viewNew,set:viewSet,inbox:viewInbox}[tab]();
   [].forEach.call(document.querySelectorAll("#tabs button"),function(b){b.classList.toggle("on",b.dataset.tab===tab)});
 }
 function go(x){if(x!=="new")draft=null;tab=x;snoozeOpen=null;delAsk=null;render();window.scrollTo(0,0)}
@@ -270,6 +288,8 @@ document.addEventListener("click",function(e){
   else if(a==="addtime"){syncDraft();var tv=document.getElementById("f-time").value;if(tv&&draft.times.indexOf(tv)<0&&draft.times.length<12){draft.times.push(tv);draft.times.sort()}render()}
   else if(a==="save"){syncDraft();saveDraft()}
   else if(a==="cancelEdit"){go(prevTab)}
+  else if(a==="fbfilter"){fbFilter=v;render()}
+  else if(a==="fbdone")act("fb_done",{id:+id,done:v==="1"},"tSet");
   else if(a==="lang")act("settings",{lang:v},"tSet");
   else if(a==="tz")act("settings",{tz:+v},"tSet");
   else if(a==="rep")act("settings",{repeat_h:+v},"tSet");

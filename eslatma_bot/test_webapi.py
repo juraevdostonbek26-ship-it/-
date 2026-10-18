@@ -165,3 +165,25 @@ def test_settings_and_feedback():
         except W.ApiError:
             pass
     raises("feedback_limit", W.handle, db, 1, "feedback", {"text": "ortiqcha"}, NOW)
+
+
+def test_admin_inbox_only_for_admin_and_anonymous():
+    db = fresh()
+    W.handle(db, 2, "feedback", {"text": "Tugma kichik"}, NOW)
+    W.handle(db, 2, "feedback", {"text": "Rang yoqmadi"}, NOW)
+    st = W.handle(db, 1, "state", {}, NOW, admin_id=0)
+    assert st["admin"] is False and "feedback" not in st
+    st = W.handle(db, 1, "state", {}, NOW, admin_id=9)  # админ эмас
+    assert st["admin"] is False and "feedback" not in st
+    raises("forbidden", W.handle, db, 1, "fb_done", {"id": 1, "done": True}, NOW, admin_id=9)
+    raises("forbidden", W.handle, db, 1, "fb_done", {"id": 1, "done": True}, NOW, admin_id=0)
+    assert db.execute("select done from feedback where id=1").fetchone()[0] == 0
+    L.ensure_user(db, 9, 9); L.set_user(db, 9, lang="uz")
+    st = W.handle(db, 9, "state", {}, NOW, admin_id=9)
+    assert st["admin"] is True and [f["text"] for f in st["feedback"]] == ["Rang yoqmadi", "Tugma kichik"]  # янгиси юқорида
+    assert all(set(f) == {"id", "text", "ts", "done"} for f in st["feedback"])  # юборувчи ID'си йўқ
+    st = W.handle(db, 9, "fb_done", {"id": 1, "done": True}, NOW, admin_id=9)
+    assert [f["done"] for f in st["feedback"]] == [False, True]
+    st = W.handle(db, 9, "fb_done", {"id": 1, "done": False}, NOW, admin_id=9)
+    assert [f["done"] for f in st["feedback"]] == [False, False]
+    raises("not_found", W.handle, db, 9, "fb_done", {"id": 999, "done": True}, NOW, admin_id=9)
